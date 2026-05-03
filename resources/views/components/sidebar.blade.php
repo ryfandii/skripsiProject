@@ -63,20 +63,7 @@
         </a>
     </li>
 
-    <!-- <li class="nav-item">
-        <a href="{{ route('admin.jadwal.grid') }}" class="nav-link">
-            <i class="fas fa-th"></i>
-            <span>Jadwal Grid 🔥</span>
-        </a>
-    </li> -->
-
-    <!-- <li class="nav-item">
-        <a href="#" class="nav-link text-danger"
-           onclick="event.preventDefault(); document.getElementById('logout-form').submit();">
-            <i class="fas fa-sign-out-alt"></i>
-            <span>Logout</span>
-        </a>
-    </li> -->
+  
 
 </ul>
 
@@ -84,13 +71,13 @@
 
 
 {{-- ================= GURU (NAVBAR MOBILE) ================= --}}
-@if($role == 'guru')
+@if(auth()->check() && auth()->user()->role == 'guru')
 
 <nav class="navbar navbar-expand-lg navbar-dark bg-info shadow-sm fixed-top">
     <div class="container-fluid">
 
         <!-- Brand -->
-        <a class="navbar-brand fw-bold" href="#">
+        <a class="navbar-brand fw-bold" href="{{ route('guru.dashboard') }}">
             <i class="fas fa-school"></i> SMAN 1
         </a>
 
@@ -104,35 +91,47 @@
             <ul class="navbar-nav ms-auto">
 
                 <li class="nav-item">
-                    <a class="nav-link" href="{{ route('guru.dashboard') }}">
+                    <a class="nav-link {{ request()->routeIs('guru.dashboard') ? 'active' : '' }}"
+                       href="{{ route('guru.dashboard') }}">
                         <i class="fas fa-home"></i> Dashboard
                     </a>
                 </li>
 
                 <li class="nav-item">
-                    <a class="nav-link" href="{{ route('guru.jadwal') }}">
+                    <a class="nav-link {{ request()->routeIs('guru.jadwal') ? 'active' : '' }}"
+                       href="{{ route('guru.jadwal') }}">
                         <i class="fas fa-calendar"></i> Jadwal
                     </a>
                 </li>
 
-                <li class="nav-item">
-                    <a class="nav-link" href="{{ route('guru.absensi') }}">
+                                <li class="nav-item">
+                    <a class="nav-link {{ request()->routeIs('guru.absensi*') ? 'active' : '' }}"
+                    href="{{ route('guru.absensi') }}">
                         <i class="fas fa-user-check"></i> Absensi
                     </a>
                 </li>
 
                 <li class="nav-item">
-                    <a class="nav-link" href="{{ route('guru.nilai.index') }}">
+                    <a class="nav-link {{ request()->routeIs('guru.nilai.*') ? 'active' : '' }}"
+                       href="{{ route('guru.nilai.index') }}">
                         <i class="fas fa-clipboard-list"></i> Nilai
                     </a>
                 </li>
 
-                <!-- <li class="nav-item">
-                    <a class="nav-link text-warning" href="#"
-                       onclick="event.preventDefault(); document.getElementById('logout-form').submit();">
-                        <i class="fas fa-sign-out-alt"></i> Logout
+                {{-- 🔥 MENU BARU: TUGAS --}}
+                <li class="nav-item">
+                    <a class="nav-link {{ request()->routeIs('guru.tugas.*') ? 'active' : '' }}"
+                       href="{{ route('guru.tugas.index') }}">
+                        <i class="fas fa-tasks"></i> Tugas
                     </a>
-                </li> -->
+                </li>
+
+                <li class="nav-item">
+                    <a href="{{ route('guru.ujian.index') }}" class="nav-link">
+                        <i class="fas fa-file-alt"></i>
+                        <p>Ujian</p>
+                    </a>
+                </li>
 
             </ul>
         </div>
@@ -170,39 +169,44 @@ body {
             <ul class="navbar-nav ms-auto">
 
                 <li class="nav-item">
-                    <a class="nav-link" href="{{ route('siswa.dashboard') }}">
+                    <a class="nav-link {{ request()->is('siswa/dashboard') ? 'active' : '' }}"
+                       href="{{ route('siswa.dashboard') }}">
                         <i class="fas fa-home"></i> Dashboard
                     </a>
                 </li>
 
                 <li class="nav-item">
-                    <a class="nav-link" href="{{ route('siswa.jadwal') }}">
+                    <a class="nav-link {{ request()->is('siswa/jadwal') ? 'active' : '' }}"
+                       href="{{ route('siswa.jadwal') }}">
                         <i class="fas fa-calendar"></i> Jadwal
                     </a>
                 </li>
 
                 <li class="nav-item">
-                    <a class="nav-link" href="{{ route('siswa.nilai') }}">
+                    <a class="nav-link {{ request()->is('siswa/nilai') ? 'active' : '' }}"
+                       href="{{ route('siswa.nilai') }}">
                         <i class="fas fa-clipboard-list"></i> Nilai
                     </a>
                 </li>
 
+                <!-- ✅ TUGAS (SUDAH BENAR) -->
                 <li class="nav-item">
-                    <a class="nav-link" href="{{ route('siswa.absensi') }}">
-                        <i class="fas fa-user-check"></i> Absensi
+                    <a class="nav-link {{ request()->is('siswa/tugas*') ? 'active' : '' }}"
+                       href="{{ route('siswa.tugas.index') }}">
+                        <i class="fas fa-tasks"></i> Tugas
+                    </a>
+                </li>
+
+                <li class="nav-item">
+                    <a href="{{ route('siswa.ujian.index') }}" class="nav-link">
+                        <i class="fas fa-edit"></i> Ujian
                     </a>
                 </li>
 
                 <!-- <li class="nav-item">
-                    <a class="nav-link" href="{{ route('siswa.profile') }}">
-                        <i class="fas fa-user"></i> Profile
-                    </a>
-                </li> -->
-
-                <!-- <li class="nav-item">
-                    <a class="nav-link text-warning" href="#"
-                       onclick="event.preventDefault(); document.getElementById('logout-form').submit();">
-                        <i class="fas fa-sign-out-alt"></i> Logout
+                    <a class="nav-link {{ request()->routeIs('siswa.absensi*') ? 'active' : '' }}"
+                    href="{{ route('siswa.absensi') }}">
+                        <i class="fas fa-user-check"></i> Absensi
                     </a>
                 </li> -->
 

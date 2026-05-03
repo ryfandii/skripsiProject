@@ -89,9 +89,10 @@
                         Kembali
                     </a>
 
-                    <button class="btn btn-success">
-                        Simpan
-                    </button>
+                <button type="submit" class="btn btn-success"
+                    onclick="this.disabled=true; this.innerText='Menyimpan...'; this.form.submit();">
+                    Simpan
+                </button>
                 </div>
 
             </form>

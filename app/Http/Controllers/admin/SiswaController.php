@@ -8,6 +8,7 @@ use Illuminate\Http\Request;
 use App\Models\Kelas;
 use App\Models\User;
 use Illuminate\Support\Facades\Hash;
+use App\Services\OtpService;
 
 class SiswaController extends Controller
 {
@@ -37,16 +38,24 @@ class SiswaController extends Controller
     // ================= STORE =================
     public function store(Request $request)
     {
-       $request->validate([
-    'nama' => 'required',
-    'jenis_kelamin' => 'required',
-    'nama_ortu' => 'required',
-    'nis' => 'required|unique:siswa,nis',
-    'kelas_id' => 'required',
-    'alamat' => 'required',
-    'telepon' => 'required',
-    'email' => 'required|email|unique:users,email',
-]);
+
+    \Log::info('STORE DIPANGGIL');
+    
+        $request->validate([
+        'nama' => 'required',
+        'jenis_kelamin' => 'required',
+        'nama_ortu' => 'required',
+        'nis' => 'required|unique:siswa,nis',
+        'kelas_id' => 'required',
+        'alamat' => 'required',
+        'telepon' => 'required',
+        'email' => 'required|email|unique:users,email',
+    ]);
+
+   // 2. CEK TAMBAHAN (ANTI DOUBLE SUBMIT)
+    if (User::where('email', $request->email)->exists()) {
+        return back()->with('error', 'Email sudah digunakan!');
+    }
 
 $siswa = Siswa::create([
     'nama' => $request->nama,
@@ -60,7 +69,7 @@ $siswa = Siswa::create([
 ]);
 
         // simpan user login
-        User::create([
+      $user = User::create([
     'name' => $request->nama,
     'email' => $request->email,
     'password' => Hash::make('12345678'), // 🔥 default
@@ -68,6 +77,9 @@ $siswa = Siswa::create([
     'siswa_id' => $siswa->id,
     'is_default_password' => true // 🔥 WAJIB
 ]);
+
+/** @var \App\Models\User $user */
+app(OtpService::class)->send($user);
 
         return redirect()->route('admin.siswa.index')
             ->with('success', 'Siswa + akun login berhasil dibuat');
@@ -120,11 +132,18 @@ $siswa->update([
     }
 
     // ================= NONAKTIF =================
-    public function nonaktif($id)
+    public function nonaktif(Request $request, $id)
     {
+        $request->validate([
+            'alasan' => 'required|min:5'
+        ]);
+
         $siswa = Siswa::findOrFail($id);
-        $siswa->status = 'nonaktif';
-        $siswa->save();
+
+        $siswa->update([
+            'status' => 'nonaktif',
+            'alasan_nonaktif' => $request->alasan
+        ]);
 
         return back()->with('success', 'Siswa dinonaktifkan');
     }

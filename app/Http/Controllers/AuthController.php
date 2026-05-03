@@ -29,35 +29,57 @@ public function login(Request $request)
 
     if (Auth::attempt($credentials)) {
 
+        $request->session()->regenerate();
+
         $user = Auth::user();
 
-        // ================= WA =================
-        $telepon = $user->getTeleponLengkap();
+        // 🔥 HANYA JIKA PASSWORD DEFAULT
+        if ($user->is_default_password) {
 
-        if ($telepon) {
-            $no = preg_replace('/^0/', '62', $telepon);
+            // ================= EMAIL =================
+            Mail::to($user->email)->send(new LoginNotification($user));
 
-            $pesan  = "🔐 LOGIN BERHASIL\n";
-            $pesan .= "User: {$user->name}\n";
-            $pesan .= "Email: {$user->email}\n";
-            $pesan .= "Waktu: " . now();
+            // ================= WHATSAPP =================
+            $telepon = $user->getTeleponLengkap();
 
-            Http::asForm()->withHeaders([
-                'Authorization' => env('FONNTE_TOKEN')
-            ])->post('https://api.fonnte.com/send', [
-                'target' => $no,
-                'message' => $pesan,
-            ]);
+            if ($telepon) {
+
+                // normalisasi nomor
+                $no = preg_replace('/[^0-9]/', '', $telepon);
+                if (substr($no, 0, 1) == '0') {
+                    $no = '62' . substr($no, 1);
+                }
+
+                $pesan  = "🔐 LOGIN PERTAMA\n";
+                $pesan .= "Nama: {$user->name}\n";
+                $pesan .= "Email: {$user->email}\n";
+                $pesan .= "Gunakan password default\n";
+                $pesan .= "Segera ganti password!\n";
+                $pesan .= "Waktu: " . now();
+
+                Http::asForm()->withHeaders([
+                    'Authorization' => env('FONNTE_TOKEN')
+                ])->post('https://api.fonnte.com/send', [
+                    'target' => $no,
+                    'message' => $pesan,
+                ]);
+            }
         }
 
-        // ================= REDIRECT ROLE =================
+        // 🔥 REDIRECT ROLE
         if ($user->role == 'admin') {
-            return redirect('/admin');
-        } elseif ($user->role == 'guru') {
-            return redirect('/guru');
-        } else {
-            return redirect('/siswa');
+            return redirect()->route('admin.dashboard');
         }
+
+        if ($user->role == 'guru') {
+            return redirect()->route('guru.dashboard');
+        }
+
+        if ($user->role == 'siswa') {
+            return redirect()->route('siswa.dashboard');
+        }
+
+        return redirect('/login');
     }
 
     return back()->with('error', 'Email atau password salah');

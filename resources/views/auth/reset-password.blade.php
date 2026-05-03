@@ -15,14 +15,20 @@
             <div class="alert alert-success">{{ session('success') }}</div>
         @endif
 
-        <form method="POST" action="{{ route('reset.password') }}">
+       <form method="POST" action="{{ route('password.update') }}">
             @csrf
 
-            <input type="password" name="password" class="form-control mb-2" placeholder="Password baru" required>
+            <input type="hidden" name="email" value="{{ request('email') }}">
 
-            <input type="password" name="password_confirmation" class="form-control mb-3" placeholder="Konfirmasi password" required>
+            <div>
+                <input type="password" name="password" placeholder="Password baru" required>
+            </div>
 
-            <button class="btn btn-warning w-100">Reset Password</button>
+            <div>
+                <input type="password" name="password_confirmation" placeholder="Konfirmasi password" required>
+            </div>
+
+            <button type="submit">Reset Password</button>
         </form>
     </div>
 </div>

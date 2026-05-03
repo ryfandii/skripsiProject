@@ -251,10 +251,18 @@ td .btn {
                                         </a>
 
                                         @if($item->status == 'aktif')
-                                            <a href="{{ route('admin.siswa.nonaktif', $item->id) }}"
-                                                class="btn btn-danger btn-sm">
-                                                Nonaktif
-                                            </a>
+                                           <form action="{{ route('admin.siswa.nonaktif', $item->id) }}" method="POST" class="d-flex gap-1">
+                                                @csrf
+
+                                                <input type="text" name="alasan"
+                                                    placeholder="Alasan..."
+                                                    required
+                                                    style="width:120px; font-size:12px;">
+
+                                                <button class="btn btn-danger btn-sm">
+                                                    Nonaktif
+                                                </button>
+                                            </form>
                                         @else
                                             <a href="{{ route('admin.siswa.aktifkan', $item->id) }}"
                                                 class="btn btn-success btn-sm">

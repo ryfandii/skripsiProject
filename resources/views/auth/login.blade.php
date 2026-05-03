@@ -242,19 +242,33 @@ html, body {
             </div>
         @endif
 
-        <form method="POST" action="/login">
+       {{-- FORM KIRIM OTP --}}
+       <form method="POST" action="{{ route('send.otp') }}">
             @csrf
 
-            <input type="email" name="email" placeholder="Enter Email" required>
-            <input type="password" name="password" placeholder="Enter Password" required>
+            <input type="email" name="email" placeholder="Email untuk OTP" required>
 
-            <button type="submit" class="btn-login">Login</button>
-
-            <div class="forgot">
-                <a href="/forgot-password">Forgot Password?</a>
-            </div>
+            <button type="submit" style="margin-bottom:10px;">
+                🔑 Dapatkan OTP
+            </button>
         </form>
 
+
+        {{-- FORM LOGIN --}}
+        <form method="POST" action="{{ route('login.otp') }}">
+            @csrf
+
+            <input type="email" name="email" placeholder="Email" required>
+            <input type="password" name="password" placeholder="Password" required>
+            <input type="text" name="otp" placeholder="Masukkan OTP">
+
+            <button type="submit">Login</button>
+        </form>
+             <div style="margin-top:10px;">
+                <a href="{{ route('password.request') }}" style="font-size:14px; color:#fff;">
+                    Lupa Password?
+                </a>
+            </div>  
     </div>
 </div>
 

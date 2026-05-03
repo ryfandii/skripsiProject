@@ -27,6 +27,8 @@ class User extends Authenticatable
         'siswa_id',
         'mapel_id',
         'photo',
+        'otp',
+        'otp_expired_at',
         'telepon', // 🔥 WAJIB TAMBAH INI
         'is_default_password'
     ];

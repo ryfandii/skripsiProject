@@ -19,7 +19,7 @@ class GuruController extends Controller
     // ================= INDEX =================
     public function index()
     {
-        $guru = Guru::with('user')->get();
+       $guru = Guru::with(['user', 'mapel'])->get();
         return view('admin.guru.index', compact('guru'));
     }
 
@@ -32,41 +32,44 @@ class GuruController extends Controller
 
     // ================= STORE =================
     public function store(Request $request)
-    {
-        $request->validate([
-            'nama' => 'required',
-            'nip' => 'required|unique:gurus,nip',
-            'mapel_id' => 'required',
-            'alamat' => 'required',
-            'telepon' => 'required',
-            'email' => 'required|email|unique:users,email'
-        ]);
+{
+    $request->validate([
+        'nama' => 'required',
+        'nip' => 'required|unique:gurus,nip',
+        'mapel_id' => 'required',
+        'alamat' => 'required',
+        'telepon' => 'required',
+        'email' => 'required|email|unique:users,email'
+    ]);
 
-        // 🔥 SIMPAN GURU
-        $guru = Guru::create([
-            'nama' => $request->nama,
-            'nip' => $request->nip,
-            'mapel' => MataPelajaran::find($request->mapel_id)->nama_mapel,
-            'alamat' => $request->alamat,
-            'telepon' => $request->telepon,
-            'status' => 'aktif'
-        ]);
-
-        // 🔥 SIMPAN USER (FIX TELEPON MASUK)
-        $user = User::create([
-            'name' => $request->nama,
-            'email' => $request->email,
-            'password' => Hash::make('12345678'),
-            'role' => 'guru',
-            'guru_id' => $guru->id,
-            'mapel_id' => $request->mapel_id,
-            'telepon' => $request->telepon, // ✅ INI YANG PENTING
-            'is_default_password' => true
-        ]);
-
-        return redirect()->route('admin.guru.index')
-            ->with('success', 'Guru berhasil ditambahkan');
+    // 🔥 CEK JIKA SUDAH ADA (ANTI DOUBLE INSERT)
+    if (Guru::where('nip', $request->nip)->exists()) {
+        return back()->withErrors(['nip' => 'NIP sudah ada'])->withInput();
     }
+
+    $guru = Guru::create([
+        'nama' => $request->nama,
+        'nip' => $request->nip,
+        'mapel_id' => $request->mapel_id,
+        'alamat' => $request->alamat,
+        'telepon' => $request->telepon,
+        'status' => 'aktif'
+    ]);
+
+    User::create([
+        'name' => $request->nama,
+        'email' => $request->email,
+        'password' => Hash::make('12345678'),
+        'role' => 'guru',
+        'guru_id' => $guru->id,
+        'mapel_id' => $request->mapel_id,
+        'telepon' => $request->telepon,
+        'is_default_password' => true
+    ]);
+
+    return redirect()->route('admin.guru.index')
+        ->with('success', 'Guru berhasil ditambahkan');
+}
 
     // ================= EDIT =================
     public function edit(Guru $guru)
@@ -86,11 +89,10 @@ class GuruController extends Controller
             'telepon' => 'required',
         ]);
 
-        // 🔥 UPDATE GURU
-        $guru->update([
+                $guru->update([
             'nama' => $request->nama,
             'nip' => $request->nip,
-            'mapel' => MataPelajaran::find($request->mapel_id)->nama_mapel,
+            'mapel_id' => $request->mapel_id, // 🔥 FIX
             'alamat' => $request->alamat,
             'telepon' => $request->telepon,
         ]);

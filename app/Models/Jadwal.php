@@ -2,7 +2,7 @@
 
 namespace App\Models;
 
-use Illuminate\Database\Eloquent\Model; // 🔥 INI WAJIB!
+use Illuminate\Database\Eloquent\Model;
 
 class Jadwal extends Model
 {
@@ -25,8 +25,8 @@ class Jadwal extends Model
         return $this->belongsTo(MataPelajaran::class, 'mata_pelajaran_id');
     }
 
-    public function guru()
-    {
-        return $this->belongsTo(Guru::class);
-    }
+   public function guru()
+{
+    return $this->belongsTo(Guru::class, 'guru_id');
+}
 }

@@ -204,7 +204,7 @@
 
                             <td>
                                 <span class="badge badge-mapel">
-                                    {{ $g->mapel }}
+                                   {{ $g->mapel->nama_mapel ?? '-' }}
                                 </span>
                             </td>
 

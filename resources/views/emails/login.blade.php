@@ -1,9 +1,11 @@
-<h2>Login Berhasil</h2>
+<h3>🔐 Login Pertama Akun</h3>
 
-<p>Halo {{ $user->name }}</p>
+<p>Halo {{ $user->name }},</p>
 
-<p>Akun kamu baru saja login.</p>
+<p>Akun Anda baru saja login menggunakan password default.</p>
 
-<p><b>Waktu:</b> {{ now() }}</p>
+<p><b>Email:</b> {{ $user->email }}</p>
 
-<p>Jika bukan kamu, segera ubah password!</p>
+<p>⚠️ Segera ubah password Anda demi keamanan.</p>
+
+<p>Waktu: {{ now() }}</p>

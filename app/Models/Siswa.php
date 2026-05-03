@@ -16,7 +16,8 @@ class Siswa extends Model
     'kelas_id',
     'alamat',
     'telepon',
-    'status'
+    'status',
+    'alasan_nonaktif'
 ];
 
     public $timestamps = true;
