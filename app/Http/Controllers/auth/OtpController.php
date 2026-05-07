@@ -5,48 +5,78 @@ namespace App\Http\Controllers\Auth;
 use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 use App\Models\User;
-use Illuminate\Support\Facades\Auth;
-use Carbon\Carbon;
 
 class OtpController extends Controller
 {
     // ================= KIRIM OTP =================
     public function sendOtp(Request $request)
     {
-        $user = User::where('email', $request->email)->first();
+        $method = $request->input('method', 'email');
 
-        if (!$user) {
-            return back()->with('error', 'Email tidak ditemukan');
+        if ($method === 'email') {
+            // ── EMAIL ──
+            $request->validate([
+                'email' => 'required|email|exists:users,email',
+            ]);
+
+            $user = User::where('email', $request->email)->first();
+
+        } else {
+            // ── WHATSAPP ──
+            $request->validate([
+                'telepon' => 'required|string',
+            ]);
+
+            $no = preg_replace('/[^0-9]/', '', $request->telepon);
+            if (str_starts_with($no, '0')) {
+                $no = '62' . substr($no, 1);
+            }
+            $no08 = '0' . substr($no, 2);
+
+            $user = User::whereHas('guru', function ($q) use ($no, $no08) {
+                $q->where('telepon', $no)
+                  ->orWhere('telepon', $no08)
+                  ->orWhere('telepon', 'like', '%' . substr($no, -9) . '%');
+            })->orWhereHas('siswa', function ($q) use ($no, $no08) {
+                $q->where('telepon', $no)
+                  ->orWhere('telepon', $no08)
+                  ->orWhere('telepon', 'like', '%' . substr($no, -9) . '%');
+            })->first();
+
+            if (!$user) {
+                return back()->with('error', 'Nomor WhatsApp tidak ditemukan.');
+            }
         }
 
-        app(\App\Services\OtpService::class)->send($user);
+        // Kirim OTP sesuai method (email SAJA atau WA SAJA)
+        app(\App\Services\OtpService::class)->send($user, $method);
 
-        return back()->with('success', 'OTP berhasil dikirim');
+        // Simpan email ke session untuk prefill form login
+        session(['email' => $user->email]);
+
+        return back()->with('otp_sent', 'OTP berhasil dikirim!');
     }
 
-    // ================= LOGIN =================
+    // ================= LOGIN DENGAN OTP =================
     public function loginOtp(Request $request)
     {
         $request->validate([
-            'email' => 'required|email',
+            'email'    => 'required|email',
             'password' => 'required',
-            'otp' => 'nullable|digits:6'
+            'otp'      => 'nullable|digits:6',
         ]);
 
-        $user = \App\Models\User::where('email', $request->email)->first();
+        $user = User::where('email', $request->email)->first();
 
         if (!$user) {
             return back()->with('error', 'User tidak ditemukan');
         }
 
-        // 🔐 CEK PASSWORD
         if (!\Hash::check($request->password, $user->password)) {
             return back()->with('error', 'Password salah');
         }
 
-        // =========================
-        // 🔥 KHUSUS GURU & SISWA WAJIB OTP
-        // =========================
+        // Guru & Siswa wajib OTP
         if (in_array($user->role, ['guru', 'siswa'])) {
 
             if (!$request->otp) {
@@ -57,7 +87,7 @@ class OtpController extends Controller
                 return back()->with('error', 'OTP belum diminta');
             }
 
-            if ((string)$request->otp !== (string)$user->otp) {
+            if ((string) $request->otp !== (string) $user->otp) {
                 return back()->with('error', 'OTP salah');
             }
 
@@ -66,34 +96,21 @@ class OtpController extends Controller
             }
         }
 
-        // =========================
-        // ✅ LOGIN
-        // =========================
         \Auth::login($user);
+        $request->session()->regenerate();
 
-        // 🔥 HAPUS OTP SETELAH DIPAKAI (hanya untuk guru & siswa)
+        // Hapus OTP setelah dipakai
         if (in_array($user->role, ['guru', 'siswa'])) {
-            $user->update([
-                'otp' => null,
-                'otp_expired_at' => null
-            ]);
+            $user->update(['otp' => null, 'otp_expired_at' => null]);
         }
 
-        // =========================
-        // 🔁 REDIRECT ROLE
-        // =========================
-        if ($user->role == 'admin') {
-            return redirect()->route('admin.dashboard');
-        }
+        session()->forget('email');
 
-        if ($user->role == 'guru') {
-            return redirect()->route('guru.dashboard');
-        }
-
-        if ($user->role == 'siswa') {
-            return redirect()->route('siswa.dashboard');
-        }
-
-        return redirect('/');
+        return match ($user->role) {
+            'admin' => redirect()->route('admin.dashboard'),
+            'guru'  => redirect()->route('guru.dashboard'),
+            'siswa' => redirect()->route('siswa.dashboard'),
+            default => redirect('/'),
+        };
     }
 }

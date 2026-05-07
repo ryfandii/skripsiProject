@@ -11,12 +11,13 @@ class AbsensiDetail extends Model
 
     protected $table = 'absensi_detail';
 
-    protected $fillable = [
-        'absensi_id',   // 🔥 WAJIB
-        'siswa_id',     // 🔥 WAJIB
-        'status',       // 🔥 hadir / izin / alpha
-        'waktu_absen'   // 🔥 timestamp
-    ];
+   protected $fillable = [
+    'absensi_id',
+    'siswa_id',
+    'status',
+    'keterangan', // 🔥 TAMBAHKAN INI
+    'waktu_absen'
+];
 
     public function absensi()
     {

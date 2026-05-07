@@ -28,7 +28,7 @@ class Tugas extends Model
 
 public function mapel()
 {
-    return $this->belongsTo(MataPelajaran::class, 'mapel_id');
+    return $this->belongsTo(\App\Models\MataPelajaran::class, 'mapel_id');
 }
 
 public function guru()

@@ -13,77 +13,164 @@ use App\Mail\LoginNotification;
 use Illuminate\Support\Facades\Http;
 
 class AuthController extends Controller
-
 {
-    // ================= LOGIN =================
+    // ================= SHOW LOGIN =================
     public function showLogin()
     {
         return view('auth.login');
     }
 
-
-
-public function login(Request $request)
+    // ================= LOGIN BIASA (email + password) =================
+   public function login(Request $request)
 {
     $credentials = $request->only('email', 'password');
 
+    $user = \App\Models\User::with('guru')
+        ->where('email', $request->email)
+        ->first();
+
+    if (!$user) {
+        return back()->with('error', 'Email tidak ditemukan');
+    }
+
+    if (!$user->guru || $user->guru->status !== 'aktif') {
+        return back()->with('error', 'Akun anda telah dinonaktifkan');
+    }
+
     if (Auth::attempt($credentials)) {
-
         $request->session()->regenerate();
-
         $user = Auth::user();
 
-        // 🔥 HANYA JIKA PASSWORD DEFAULT
+        // Notifikasi login pertama → HANYA kirim email, tidak WA
+        // Hilangkan logika WA di sini agar tidak mengganggu flow OTP
         if ($user->is_default_password) {
-
-            // ================= EMAIL =================
-            Mail::to($user->email)->send(new LoginNotification($user));
-
-            // ================= WHATSAPP =================
-            $telepon = $user->getTeleponLengkap();
-
-            if ($telepon) {
-
-                // normalisasi nomor
-                $no = preg_replace('/[^0-9]/', '', $telepon);
-                if (substr($no, 0, 1) == '0') {
-                    $no = '62' . substr($no, 1);
-                }
-
-                $pesan  = "🔐 LOGIN PERTAMA\n";
-                $pesan .= "Nama: {$user->name}\n";
-                $pesan .= "Email: {$user->email}\n";
-                $pesan .= "Gunakan password default\n";
-                $pesan .= "Segera ganti password!\n";
-                $pesan .= "Waktu: " . now();
-
-                Http::asForm()->withHeaders([
-                    'Authorization' => env('FONNTE_TOKEN')
-                ])->post('https://api.fonnte.com/send', [
-                    'target' => $no,
-                    'message' => $pesan,
-                ]);
-            }
+            Mail::to($user->email)->send(new \App\Mail\LoginNotification($user));
         }
 
-        // 🔥 REDIRECT ROLE
-        if ($user->role == 'admin') {
-            return redirect()->route('admin.dashboard');
-        }
-
-        if ($user->role == 'guru') {
-            return redirect()->route('guru.dashboard');
-        }
-
-        if ($user->role == 'siswa') {
-            return redirect()->route('siswa.dashboard');
-        }
-
-        return redirect('/login');
+        return $this->redirectByRole($user);
     }
 
     return back()->with('error', 'Email atau password salah');
 }
+
+    // ================= KIRIM OTP =================
+    // Dipanggil dari form Langkah 1 di halaman login
+ public function sendOtp(Request $request)
+    {
+        $method = $request->input('method', 'email'); // 'email' atau 'wa'
+
+        if ($method === 'email') {
+            $request->validate([
+                'email' => 'required|email|exists:users,email',
+            ]);
+
+            $user = User::where('email', $request->email)->first();
+
+        } else {
+            $request->validate([
+                'telepon' => 'required|string',
+            ]);
+
+            $no = preg_replace('/[^0-9]/', '', $request->telepon);
+            if (str_starts_with($no, '0')) {
+                $no = '62' . substr($no, 1);
+            }
+
+            $user = User::whereHas('guru', function ($q) use ($no) {
+                $q->whereRaw("REGEXP_REPLACE(telepon, '[^0-9]', '') LIKE ?", ["%{$no}%"]);
+            })->orWhereHas('siswa', function ($q) use ($no) {
+                $q->whereRaw("REGEXP_REPLACE(telepon, '[^0-9]', '') LIKE ?", ["%{$no}%"]);
+            })->first();
+
+            if (!$user) {
+                return back()->with('error', 'Nomor WhatsApp tidak ditemukan.');
+            }
+        }
+
+        // Kirim OTP sesuai method — email SAJA atau WA SAJA
+        app(\App\Services\OtpService::class)->send($user, $method);
+
+        // Simpan email ke session untuk prefill form login
+        session(['email' => $user->email]);
+
+        return back()->with('otp_sent', 'OTP berhasil dikirim!');
+    }
+
+
+    // ================= LOGIN DENGAN OTP (Langkah 2) =================
+    // Dipanggil dari form Langkah 2 di halaman login
+ public function loginOtp(Request $request)
+{
+    $request->validate([
+        'email'    => 'required|email',
+        'password' => 'required',
+        'otp'      => 'nullable|digits:6',
+    ]);
+
+    $user = User::where('email', $request->email)->first();
+
+    if (!$user) {
+        return back()->with('error', 'Email tidak ditemukan.');
+    }
+
+    // Cek password
+    if (!Hash::check($request->password, $user->password)) {
+        return back()->with('error', 'Password salah.');
+    }
+
+    // =================================================
+    // ADMIN → LANGSUNG LOGIN TANPA OTP
+    // =================================================
+    if ($user->role === 'admin') {
+
+        Auth::login($user);
+        $request->session()->regenerate();
+
+        return redirect()->route('admin.dashboard');
+    }
+
+    // =================================================
+    // GURU / SISWA WAJIB OTP
+    // =================================================
+    if (in_array($user->role, ['guru', 'siswa'])) {
+
+        if (empty($request->otp)) {
+            return back()->with('error', 'OTP wajib diisi.');
+        }
+
+        if (!$user->otp) {
+            return back()->with('error', 'OTP belum diminta.');
+        }
+
+        if ((string)$request->otp !== (string)$user->otp) {
+            return back()->with('error', 'Kode OTP salah.');
+        }
+
+        if (!$user->otp_expired_at || now()->gt($user->otp_expired_at)) {
+            return back()->with('error', 'OTP sudah kadaluarsa.');
+        }
+
+        // Login
+        Auth::login($user);
+        $request->session()->regenerate();
+
+        // Hapus OTP
+        $user->update([
+            'otp' => null,
+            'otp_expired_at' => null,
+        ]);
+
+        return match ($user->role) {
+            'guru'  => redirect()->route('guru.dashboard'),
+            'siswa' => redirect()->route('siswa.dashboard'),
+            default => redirect('/'),
+        };
+    }
+
+    return back()->with('error', 'Role tidak dikenali.');
+}
+
+
     // ================= UPDATE PASSWORD =================
     public function updatePassword(Request $request)
     {
@@ -93,12 +180,10 @@ public function login(Request $request)
 
         $user = Auth::user();
 
-        // 🔥 UPDATE + FORCE REFRESH USER
         $user->password = Hash::make($request->password);
         $user->is_default_password = false;
         $user->save();
 
-        // 🔥 PENTING: refresh data user (hindari cache lama)
         Auth::setUser($user->fresh());
 
         return $this->redirectByRole($user);
@@ -113,18 +198,18 @@ public function login(Request $request)
     public function register(Request $request)
     {
         $request->validate([
-            'name' => 'required',
-            'email' => 'required|email|unique:users',
+            'name'     => 'required',
+            'email'    => 'required|email|unique:users',
             'password' => 'required|min:6',
-            'role' => 'required'
+            'role'     => 'required'
         ]);
 
         User::create([
-            'name' => $request->name,
-            'email' => $request->email,
-            'password' => Hash::make($request->password),
-            'role' => $request->role,
-            'is_default_password' => false // 🔥 register normal
+            'name'               => $request->name,
+            'email'              => $request->email,
+            'password'           => Hash::make($request->password),
+            'role'               => $request->role,
+            'is_default_password' => false,
         ]);
 
         return redirect('/login')->with('success', 'Register berhasil');
@@ -141,134 +226,73 @@ public function login(Request $request)
         return redirect('/login');
     }
 
-    // ================= BONUS: REDIRECT BY ROLE =================
-    private function redirectByRole($user)
+    // ================= VERIFY OTP (halaman terpisah jika ada) =================
+    public function showVerifyOtp()
+    {
+        return view('auth.verify-otp');
+    }
+
+    public function verifyOtp(Request $request)
+    {
+        if ((string) $request->otp === (string) session('otp')) {
+            return redirect()->route('reset.password.form');
+        }
+
+        return back()->with('error', 'OTP salah');
+    }
+
+    // ================= RESET PASSWORD (via OTP lupa password) =================
+    public function showResetPassword()
+    {
+        return view('auth.reset-password');
+    }
+
+    public function resetPasswordOtp(Request $request)
+    {
+        $request->validate([
+            'password' => 'required|min:6|confirmed'
+        ]);
+
+        $user = User::find(session('otp_user'));
+
+        $user->update([
+            'password'           => Hash::make($request->password),
+            'otp'                => null,
+            'otp_expired_at'     => null,
+            'is_default_password' => false,
+        ]);
+
+        session()->forget('otp_user');
+
+        return redirect('/login')->with('success', 'Password berhasil diubah');
+    }
+
+    public function resetPassword(Request $request)
+    {
+        $request->validate([
+            'password' => 'required|confirmed|min:6'
+        ]);
+
+        $user = \App\Models\User::where('email', session('email'))->first();
+
+        if (!$user) {
+            return back()->with('error', 'User tidak ditemukan');
+        }
+
+        $user->password = bcrypt($request->password);
+        $user->save();
+
+        return redirect()->route('login')->with('success', 'Password berhasil diubah');
+    }
+
+    // ================= HELPER: REDIRECT BY ROLE =================
+   private function redirectByRole($user)
     {
         return match ($user->role) {
             'admin' => redirect()->route('admin.dashboard'),
-            'guru' => redirect()->route('guru.dashboard'),
+            'guru'  => redirect()->route('guru.dashboard'),
             'siswa' => redirect()->route('siswa.dashboard'),
             default => redirect('/login'),
         };
     }
-
-    public function verifyOtp(Request $request)
-{
-    if ($request->otp == session('otp')) {
-
-        return redirect()->route('reset.password.form'); // ✅ INI WAJIB
-    }
-
-    return back()->with('error', 'OTP salah');
-}
-
-public function resetPasswordOtp(Request $request)
-{
-    $request->validate([
-        'password' => 'required|min:6|confirmed'
-    ]);
-
-    $user = User::find(session('otp_user'));
-
-    $user->update([
-        'password' => Hash::make($request->password),
-        'otp' => null,
-        'otp_expired_at' => null,
-        'is_default_password' => false
-    ]);
-
-    session()->forget('otp_user');
-
-    return redirect('/login')->with('success', 'Password berhasil diubah');
-}
-
-public function sendOtp(Request $request)
-{
-    $request->validate([
-        'email' => 'required|email|exists:users,email'
-    ]);
-
-    $otp = rand(100000, 999999);
-
-    session([
-        'otp' => $otp,
-        'email' => $request->email
-    ]);
-
-    // kirim email (Mailtrap sudah jalan)
-
-    \Mail::raw("Kode OTP kamu adalah: $otp", function ($message) use ($request) {
-        $message->to($request->email)
-                ->subject('Kode OTP Reset Password');
-    });
-
-    return redirect()->route('verify.otp.form');
-}
-
-public function showVerifyOtp()
-{
-    return view('auth.verify-otp');
-}
-
-public function showResetPassword()
-{
-    return view('auth.reset-password');
-}
-
-public function resetPassword(Request $request)
-{
-    $request->validate([
-        'password' => 'required|confirmed|min:6'
-    ]);
-
-    $user = \App\Models\User::where('email', session('email'))->first();
-
-    if (!$user) {
-        return back()->with('error', 'User tidak ditemukan');
-    }
-
-    $user->password = bcrypt($request->password);
-    $user->save();
-
-    return redirect()->route('login')->with('success', 'Password berhasil diubah');
-}
-
-public function sendWhatsapp($nomor, $pesan)
-{
-    $token = env('rJ5jmNfJ99gJFNdmjmTW');
-
-    // 🔥 NORMALISASI NOMOR (ANTI SALAH FORMAT)
-    $nomor = preg_replace('/[^0-9]/', '', $nomor);
-
-    if (substr($nomor, 0, 1) == '0') {
-        $nomor = '62' . substr($nomor, 1);
-    }
-
-    $curl = curl_init();
-
-    curl_setopt_array($curl, array(
-        CURLOPT_URL => "https://api.fonnte.com/send",
-        CURLOPT_RETURNTRANSFER => true,
-        CURLOPT_POST => true,
-        CURLOPT_POSTFIELDS => [
-            'target' => $nomor,
-            'message' => $pesan,
-            'countryCode' => '62'
-        ],
-        CURLOPT_HTTPHEADER => [
-            "Authorization: $token"
-        ],
-    ));
-
-    $response = curl_exec($curl);
-
-    if (curl_errno($curl)) {
-        dd("CURL ERROR: " . curl_error($curl));
-    }
-
-    curl_close($curl);
-
-    // 🔥 DEBUG WAJIB
-    return $response;
-}
 }

@@ -72,10 +72,12 @@ class GuruController extends Controller
 }
 
     // ================= EDIT =================
-    public function edit(Guru $guru)
+    public function edit($id)
     {
+        $guru = Guru::findOrFail($id);
         $mapel = MataPelajaran::all();
-        return view('admin.guru.edit', compact('guru', 'mapel'));
+
+      return view('admin.guru.edit', compact('guru', 'mapel'));
     }
 
     // ================= UPDATE =================
@@ -92,7 +94,7 @@ class GuruController extends Controller
                 $guru->update([
             'nama' => $request->nama,
             'nip' => $request->nip,
-            'mapel_id' => $request->mapel_id, // 🔥 FIX
+            'mapel_id' => $request->mapel_id, // 🔥 INI WAJIB
             'alamat' => $request->alamat,
             'telepon' => $request->telepon,
         ]);

@@ -26,6 +26,6 @@ public function siswa()
 
 public function tugas()
 {
-    return $this->belongsTo(Tugas::class);
+    return $this->belongsTo(\App\Models\Tugas::class, 'tugas_id');
 }
 }

@@ -1,37 +1,213 @@
+{{-- ============================================================
+     FILE 3: resources/views/admin/mapel/edit.blade.php
+     ============================================================ --}}
+
 @extends('layouts.app')
 
 @section('content')
-<div class="container-fluid">
 
-    <h1 class="h3 mb-4 text-gray-800">Edit Mata Pelajaran</h1>
+<style>
+    @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&family=DM+Mono:wght@400;500&display=swap');
 
-    <div class="card shadow">
-        <div class="card-body">
+    :root {
+        --brand:        #1a56db;
+        --brand-light:  #e8f0fe;
+        --brand-dark:   #1648c0;
+        --warning:      #d97706;
+        --warning-light:#fef3c7;
+        --danger:       #dc2626;
+        --page-bg:      #f4f6fa;
+        --surface:      #ffffff;
+        --border:       rgba(0,0,0,0.08);
+        --text-1:       #111827;
+        --text-2:       #6b7280;
+        --text-3:       #9ca3af;
+        --r-sm: 8px; --r-md: 12px; --r-lg: 16px;
+        --sh-sm: 0 1px 4px rgba(0,0,0,.06), 0 2px 8px rgba(0,0,0,.04);
+    }
+.container,
+.container-fluid {
+    width: 100% !important;
+    max-width: 100% !important;
+    padding-left: 0 !important;
+    padding-right: 0 !important;
+}
+    *, *::before, *::after { font-family: 'Plus Jakarta Sans', sans-serif; box-sizing: border-box; }
+
+    .form-wrap { background: var(--page-bg); min-height: 100vh; padding: 28px 32px 56px; }
+
+    .form-nav { display: flex; align-items: center; gap: 8px; margin-bottom: 20px; }
+    .form-nav a { font-size: 13px; font-weight: 500; color: var(--text-2); text-decoration: none; display: inline-flex; align-items: center; gap: 5px; transition: color .12s; }
+    .form-nav a:hover { color: var(--brand); }
+    .form-nav-sep { color: var(--text-3); font-size: 13px; }
+    .form-nav-current { font-size: 13px; font-weight: 600; color: var(--text-1); }
+
+    .form-page-title { margin-bottom: 24px; }
+    .form-page-title .eyebrow { font-size: 11px; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; color: var(--warning); margin-bottom: 4px; }
+    .form-page-title h1 { font-size: 24px; font-weight: 700; color: var(--text-1); margin: 0; letter-spacing: -.4px; }
+
+    /* edit indicator banner */
+    .edit-banner {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    background: var(--warning-light);
+    border: 1px solid rgba(217,119,6,.2);
+    border-left: 4px solid var(--warning);
+    border-radius: var(--r-md);
+    padding: 13px 16px;
+    margin-bottom: 22px;
+    font-size: 13px;
+    font-weight: 500;
+    color: #92400e;
+
+    width: 100%;
+    max-width: 100%;
+}
+
+   .form-card {
+    background: var(--surface);
+    border-radius: var(--r-lg);
+    border: 1px solid var(--border);
+    box-shadow: var(--sh-sm);
+
+    width: 100%;
+    max-width: 100%;
+}
+    .form-card-header { padding: 20px 24px 16px; border-bottom: 1px solid var(--border); display: flex; align-items: center; gap: 12px; }
+    .form-card-icon { width: 38px; height: 38px; border-radius: 9px; background: var(--warning-light); color: var(--warning); display: flex; align-items: center; justify-content: center; font-size: 16px; flex-shrink: 0; }
+    .form-card-header-text h5 { font-size: 15px; font-weight: 700; color: var(--text-1); margin: 0 0 2px; }
+    .form-card-header-text p  { font-size: 12px; color: var(--text-2); margin: 0; }
+    .form-card-body { padding: 24px; }
+
+    .field { margin-bottom: 20px; }
+    .field-label { display: flex; align-items: center; gap: 4px; font-size: 13px; font-weight: 600; color: var(--text-1); margin-bottom: 7px; }
+    .field-hint { font-size: 12px; color: var(--text-3); margin-top: 5px; }
+
+    .field-input {
+        width: 100%; padding: 10px 13px;
+        border: 1.5px solid var(--border);
+        border-radius: var(--r-sm);
+        font-size: 14px; color: var(--text-1);
+        background: #fff; outline: none;
+        transition: border-color .15s, box-shadow .15s;
+        font-family: 'Plus Jakarta Sans', sans-serif;
+    }
+    .field-input::placeholder { color: var(--text-3); }
+    .field-input:focus { border-color: var(--brand); box-shadow: 0 0 0 3px rgba(26,86,219,.1); }
+    .field-input[type="number"] { font-family: 'DM Mono', monospace; }
+
+    .field-input-group { display: flex; align-items: stretch; border: 1.5px solid var(--border); border-radius: var(--r-sm); overflow: hidden; transition: border-color .15s, box-shadow .15s; background: #fff; }
+    .field-input-group:focus-within { border-color: var(--brand); box-shadow: 0 0 0 3px rgba(26,86,219,.1); }
+    .field-input-group .input-addon { display: flex; align-items: center; padding: 0 12px; background: #f8fafc; border-right: 1.5px solid var(--border); font-size: 12px; font-weight: 600; color: var(--text-3); white-space: nowrap; }
+    .field-input-group .input-addon-right { border-right: none; border-left: 1.5px solid var(--border); }
+    .field-input-group .field-input { border: none; border-radius: 0; box-shadow: none; }
+    .field-input-group .field-input:focus { box-shadow: none; }
+
+    .form-footer { display: flex; align-items: center; gap: 10px; padding-top: 20px; border-top: 1px solid var(--border); margin-top: 24px; }
+
+    .btn-submit {
+        display: inline-flex; align-items: center; gap: 7px;
+        background: var(--warning); color: #fff; border: none;
+        border-radius: var(--r-sm); padding: 10px 22px;
+        font-size: 13px; font-weight: 600; cursor: pointer;
+        text-decoration: none; transition: all .15s ease;
+        box-shadow: 0 2px 8px rgba(217,119,6,.3);
+        font-family: 'Plus Jakarta Sans', sans-serif;
+    }
+    .btn-submit:hover { background: #b45309; transform: translateY(-1px); color: #fff; }
+    .btn-submit i { font-size: 11px; }
+
+    .btn-back {
+        display: inline-flex; align-items: center; gap: 7px;
+        background: #f8fafc; color: var(--text-1);
+        border: 1.5px solid rgba(0,0,0,.12);
+        border-radius: var(--r-sm); padding: 10px 18px;
+        font-size: 13px; font-weight: 600; cursor: pointer;
+        text-decoration: none; transition: all .12s ease;
+        font-family: 'Plus Jakarta Sans', sans-serif;
+    }
+    .btn-back:hover { background: #eef2f6; color: var(--text-1); }
+    .btn-back i { font-size: 11px; }
+
+    @media (max-width: 768px) {
+        .form-wrap { padding: 20px 16px 40px; }
+        .form-card { max-width: 100%; }
+        .edit-banner { max-width: 100%; }
+    }
+</style>
+
+<div class="form-wrap">
+
+    <div class="form-nav">
+        <a href="{{ route('admin.mapel.index') }}">
+            <i class="fas fa-arrow-left" style="font-size:11px;"></i> Mata Pelajaran
+        </a>
+        <span class="form-nav-sep">/</span>
+        <span class="form-nav-current">Edit</span>
+    </div>
+
+    <div class="form-page-title">
+        <div class="eyebrow">Kurikulum</div>
+        <h1>Edit Mata Pelajaran</h1>
+    </div>
+
+    <div class="edit-banner">
+        <i class="fas fa-pen" style="font-size:14px; flex-shrink:0;"></i>
+        Anda sedang mengedit: <strong>&nbsp;{{ $mapel->nama_mapel }}</strong>
+    </div>
+
+    <div class="form-card">
+        <div class="form-card-header">
+            <div class="form-card-icon"><i class="fas fa-pen"></i></div>
+            <div class="form-card-header-text">
+                <h5>Ubah Data Mata Pelajaran</h5>
+                <p>Perubahan akan langsung tersimpan ke sistem</p>
+            </div>
+        </div>
+        <div class="form-card-body">
 
             <form action="{{ route('admin.mapel.update', $mapel->id) }}" method="POST">
                 @csrf
                 @method('PUT')
 
-                <div class="form-group">
-                    <label>Nama Mapel</label>
-                    <input type="text" name="nama_mapel" value="{{ $mapel->nama_mapel }}" class="form-control">
+                {{-- Nama Mapel --}}
+                <div class="field">
+                    <label class="field-label">Nama Mata Pelajaran</label>
+                    <input type="text" name="nama_mapel" value="{{ $mapel->nama_mapel }}"
+                           class="field-input" placeholder="cth. Matematika Wajib">
                 </div>
 
-                <div class="form-group">
-                    <label>Kode Mapel</label>
-                    <input type="text" name="kode_mapel" value="{{ $mapel->kode_mapel }}" class="form-control">
+                {{-- Kode Mapel --}}
+                <div class="field">
+                    <label class="field-label">Kode Mata Pelajaran</label>
+                    <div class="field-input-group">
+                        <span class="input-addon"><i class="fas fa-hashtag" style="font-size:11px;"></i></span>
+                        <input type="text" name="kode_mapel" value="{{ $mapel->kode_mapel }}"
+                               class="field-input" placeholder="cth. MTK-01">
+                    </div>
                 </div>
 
-                <div class="form-group">
-                    <label>Jam Pelajaran</label>
-                    <input type="number" name="jam_pelajaran" value="{{ $mapel->jam_pelajaran }}" class="form-control">
+                {{-- Jam Pelajaran --}}
+                <div class="field">
+                    <label class="field-label">Jam Pelajaran</label>
+                    <div class="field-input-group">
+                        <input type="number" name="jam_pelajaran" value="{{ $mapel->jam_pelajaran }}"
+                               class="field-input" placeholder="0" min="1" max="40">
+                        <span class="input-addon input-addon-right">jam / minggu</span>
+                    </div>
                 </div>
 
-                <button class="btn btn-primary">Update</button>
-                <a href="{{ route('admin.mapel.index') }}" class="btn btn-secondary">Kembali</a>
+                <div class="form-footer">
+                    <button type="submit" class="btn-submit">
+                        <i class="fas fa-save"></i> Update
+                    </button>
+                    <a href="{{ route('admin.mapel.index') }}" class="btn-back">
+                        <i class="fas fa-arrow-left"></i> Kembali
+                    </a>
+                </div>
 
             </form>
-
         </div>
     </div>
 

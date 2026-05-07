@@ -11,11 +11,12 @@ return Application::configure(basePath: dirname(__DIR__))
         commands: __DIR__.'/../routes/console.php',
         health: '/up',
     )
-   ->withMiddleware(function ($middleware) {
-    $middleware->alias([
-        'force.password' => ForcePasswordChange::class,
-    ]);
-})
+    ->withMiddleware(function ($middleware) {
+        $middleware->alias([
+            'force.password' => \App\Http\Middleware\ForcePasswordChange::class,
+            'cek.status'     => \App\Http\Middleware\CekStatusUser::class,
+        ]);
+    })
 
     ->withExceptions(function (Exceptions $exceptions) {
         //

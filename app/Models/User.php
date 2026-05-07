@@ -94,6 +94,8 @@ class User extends Authenticatable
         return $this->belongsTo(MataPelajaran::class, 'mapel_id');
     }
 
+    
+
     /*
     |--------------------------------------------------------------------------
     | 🔥 HELPER TAMBAHAN (OPSIONAL TAPI BAGUS)

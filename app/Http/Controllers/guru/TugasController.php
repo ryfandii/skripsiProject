@@ -15,21 +15,41 @@ use App\Models\Siswa;
 
 class TugasController extends Controller
 {
-   public function index()
+  public function index()
 {
     $guru = auth()->user()->guru;
 
     $tugas = Tugas::with(['kelas', 'mapel'])
-        ->withCount('pengumpulan') // 🔥 hitung jumlah yang kumpul
+        ->withCount('pengumpulan')
         ->where('guru_id', $guru->id)
         ->get();
 
-    // 🔥 tambahkan total siswa per kelas
     foreach ($tugas as $t) {
         $t->total_siswa = Siswa::where('kelas_id', $t->kelas_id)->count();
     }
 
-    return view('guru.tugas.index', compact('tugas'));
+    // Ambil semua pengumpulan dari semua tugas guru ini
+    $tugasIds = $tugas->pluck('id');
+
+    $rekapNilai = \App\Models\PengumpulanTugas::with('siswa')
+        ->whereIn('tugas_id', $tugasIds)
+        ->whereNotNull('nilai')
+        ->get()
+        ->groupBy('siswa_id')
+        ->map(function($kumpulan) {
+            $siswa = $kumpulan->first()->siswa;
+            $nilaiList = $kumpulan->pluck('nilai')->map(fn($n) => (float)$n);
+            $rata = round($nilaiList->avg(), 1);
+            return [
+                'nama'          => $siswa->nama ?? '-',
+                'inisial'       => strtoupper(substr($siswa->nama ?? 'S', 0, 1)),
+                'jumlah_tugas'  => $kumpulan->count(),
+                'rata_rata'     => $rata,
+            ];
+        })
+        ->values();
+
+    return view('guru.tugas.index', compact('tugas', 'rekapNilai'));
 }
 
 public function create()
@@ -145,15 +165,19 @@ public function pengumpulan($id)
 
     foreach ($tugas->pengumpulan as $p) {
         $waktu = Carbon::parse($p->created_at);
-
-        if ($waktu->gt($deadline)) {
-            $p->status = 'telat';
-        } else {
-            $p->status = 'tepat';
-        }
+        $p->status = $waktu->gt($deadline) ? 'telat' : 'tepat';
     }
 
-    return view('guru.tugas.pengumpulan', compact('tugas'));
+    // Siapkan data untuk JS rata-rata
+    $pengumpulanJson = $tugas->pengumpulan->map(function($p) {
+        return [
+            'nama'    => $p->siswa->nama ?? '-',
+            'inisial' => strtoupper(substr($p->siswa->nama ?? 'S', 0, 1)),
+            'nilai'   => $p->nilai,
+        ];
+    });
+
+    return view('guru.tugas.pengumpulan', compact('tugas', 'pengumpulanJson'));
 }
 
 public function nilai(Request $request, $id)
