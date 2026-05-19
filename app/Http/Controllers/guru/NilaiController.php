@@ -1,6 +1,6 @@
 <?php
 
-namespace App\Http\Controllers\guru;
+namespace App\Http\Controllers\Guru;
 
 use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
@@ -11,134 +11,213 @@ use App\Models\Kelas;
 
 class NilaiController extends Controller
 {
-    // 📌 Tampilkan semua nilai
+    // ── INDEX: Tampilkan menu nilai guru ──────────────────────────────
     public function index(Request $request)
-{
-    $user = auth()->user();
+    {
+        $user     = auth()->user();
+        $mapel_id = $user->mapel_id;
+        $kelas    = Kelas::all();
 
-    // ambil mapel guru
-    $mapel_id = $user->mapel_id;
+        // Filter kelas
+        $query = Nilai::with(['siswa.kelas', 'mapel'])
+            ->where('mapel_id', $mapel_id);
 
-    // ambil semua kelas (buat dropdown filter)
-    $kelas = \App\Models\Kelas::all();
+        if ($request->kelas_id) {
+            $query->whereHas('siswa', function ($q) use ($request) {
+                $q->where('kelas_id', $request->kelas_id);
+            });
+        }
 
-    // query nilai + relasi siswa & mapel
-    $query = \App\Models\Nilai::with(['siswa.kelas', 'mapel'])
-        ->where('mapel_id', $mapel_id);
+        // Filter siswa (opsional)
+        if ($request->siswa_id) {
+            $query->where('siswa_id', $request->siswa_id);
+        }
 
-    // 🔥 FILTER KELAS
-    if ($request->kelas_id) {
-        $query->whereHas('siswa', function ($q) use ($request) {
-            $q->where('kelas_id', $request->kelas_id);
-        });
+        $nilai = $query->get();
+
+        // Siswa berdasarkan kelas yang dipilih (untuk dropdown filter siswa)
+        $siswaList = collect();
+        if ($request->kelas_id) {
+            $siswaList = Siswa::where('kelas_id', $request->kelas_id)->get();
+        }
+
+        return view('guru.nilai.index', compact('nilai', 'kelas', 'siswaList'));
     }
 
-    $nilai = $query->get();
+    // ── HITUNG RATA-RATA: simpan nilai_akhir ke kolom rata ──────────
+    public function hitungRata(Request $request)
+    {
+        $request->validate([
+            'kelas_id' => 'required',
+        ]);
 
-    return view('guru.nilai.index', compact('nilai', 'kelas'));
-}
-    // 📌 Halaman input nilai per kelas
-   public function inputNilai()
-{
-    $kelas = Kelas::all();
+        $user     = auth()->user();
+        $mapel_id = $user->mapel_id;
 
-    // 🔥 ambil mapel sesuai guru login
-    $mapel = MataPelajaran::find(auth()->user()->mapel_id);
+        // Ambil semua nilai siswa di kelas ini untuk mapel guru
+        $nilaiList = Nilai::with('siswa')
+            ->where('mapel_id', $mapel_id)
+            ->whereHas('siswa', fn($q) => $q->where('kelas_id', $request->kelas_id))
+            ->get();
 
-    if (!$mapel) {
-        return back()->with('error', 'Mapel belum disetting!');
+        foreach ($nilaiList as $n) {
+            // Hitung rata-rata dari tugas, uts, uas
+            $parts = [];
+            if ($n->nilai_tugas !== null) $parts[] = (float) $n->nilai_tugas;
+            if ($n->nilai_uts   !== null) $parts[] = (float) $n->nilai_uts;
+            if ($n->nilai_uas   !== null) $parts[] = (float) $n->nilai_uas;
+
+            if (count($parts) > 0) {
+                $rata = round(array_sum($parts) / count($parts), 2);
+                $n->update(['nilai_akhir' => $rata]);
+            }
+        }
+
+        return redirect()->route('guru.nilai.index', ['kelas_id' => $request->kelas_id])
+            ->with('success', 'Rata-rata berhasil dihitung!');
     }
 
-    return view('guru.nilai.input', compact('kelas', 'mapel'));
-}
+    // ── KIRIM NILAI KE SISWA (per kelas atau semua) ─────────────────
+    public function kirimKeSiswa(Request $request)
+    {
+        $user     = auth()->user();
+        $mapel_id = $user->mapel_id;
 
-    // 📌 Ambil siswa berdasarkan kelas (AJAX)
-   public function getSiswaByKelas($id)
-{
-    $siswa = Siswa::where('kelas_id', $id)->get();
+        $query = Nilai::where('mapel_id', $mapel_id)
+            ->whereNotNull('nilai_akhir');
 
-    return response()->json($siswa);
-}
+        // Kalau ada kelas_id, kirim per kelas saja
+        if ($request->kelas_id) {
+            $query->whereHas('siswa', fn($q) => $q->where('kelas_id', $request->kelas_id));
+        }
 
-    // 📌 Simpan nilai banyak sekaligus
+        $nilaiList = $query->get();
+
+        foreach ($nilaiList as $n) {
+            $n->update(['sudah_kirim' => 1]);
+        }
+
+        $msg = $request->kelas_id
+            ? 'Nilai berhasil dikirim ke siswa kelas ini!'
+            : 'Nilai berhasil dikirim ke semua kelas!';
+
+        return redirect()->route('guru.nilai.index')
+            ->with('success', $msg);
+    }
+
+    // ── HALAMAN INPUT NILAI PER KELAS ────────────────────────────────
+    public function inputNilai()
+    {
+        $kelas = Kelas::all();
+        $mapel = MataPelajaran::find(auth()->user()->mapel_id);
+
+        if (!$mapel) {
+            return back()->with('error', 'Mapel belum disetting!');
+        }
+
+        return view('guru.nilai.input', compact('kelas', 'mapel'));
+    }
+
+    // ── AJAX: ambil siswa berdasarkan kelas ─────────────────────────
+    public function getSiswaByKelas($id)
+    {
+        $siswa = Siswa::where('kelas_id', $id)->get();
+        return response()->json($siswa);
+    }
+
+    // ── SIMPAN NILAI BATCH ───────────────────────────────────────────
     public function storeBatch(Request $request)
     {
         $request->validate([
             'mapel_id' => 'required',
-            'nilai' => 'required|array'
+            'nilai'    => 'required|array',
         ]);
 
         foreach ($request->nilai as $siswa_id => $nilai) {
-
             if ($nilai != null) {
                 Nilai::updateOrCreate(
-                    [
-                        'siswa_id' => $siswa_id,
-                        'mapel_id' => $request->mapel_id
-                    ],
-                    [
-                        'nilai' => $nilai
-                    ]
+                    ['siswa_id' => $siswa_id, 'mapel_id' => $request->mapel_id],
+                    ['nilai'    => $nilai]
                 );
             }
         }
 
         return redirect()->route('guru.nilai.index')
-                         ->with('success', 'Nilai berhasil disimpan');
+            ->with('success', 'Nilai berhasil disimpan');
     }
 
-    // ================= CRUD BIASA =================
-
-    public function create()
-    {
-        $siswa = Siswa::all();
-        $mapel = MataPelajaran::all();
-
-        return view('guru.nilai.create', compact('siswa', 'mapel'));
-    }
-
-    public function store(Request $request)
+    // ── MASUKKAN NILAI TUGAS DARI MENU TUGAS ─────────────────────────
+    // Dipanggil dari tombol di halaman tugas / rekap rata-rata
+    public function masukkanNilaiTugas(Request $request)
     {
         $request->validate([
-            'siswa_id' => 'required',
-            'mapel_id' => 'required',
-            'nilai' => 'required|numeric|min:0|max:100',
+            'siswa_id'    => 'required',
+            'nilai_tugas' => 'required|numeric|min:0|max:100',
         ]);
 
-        Nilai::create($request->all());
+        $user     = auth()->user();
+        $mapel_id = $user->mapel_id;
 
-        return redirect()->route('guru.nilai.index')
-                         ->with('success', 'Data nilai berhasil ditambahkan');
+        Nilai::updateOrCreate(
+            ['siswa_id' => $request->siswa_id, 'mapel_id' => $mapel_id],
+            ['nilai_tugas' => $request->nilai_tugas]
+        );
+
+        return back()->with('success', 'Nilai tugas berhasil dimasukkan ke menu nilai!');
     }
 
-    public function edit($id)
-{
-    $nilai = Nilai::with(['siswa', 'mapel'])->findOrFail($id);
+    // ── MASUKKAN NILAI UJIAN DARI MENU UJIAN ─────────────────────────
+    // Dipanggil dari tombol di menu ujian per ujian (UTS/UAS)
+    public function masukkanNilaiUjian(Request $request)
+    {
+        $request->validate([
+            'ujian_id' => 'required',
+        ]);
 
-    return view('guru.nilai.edit', compact('nilai'));
-}
+        $ujian    = \App\Models\Ujian::with('kelas')->findOrFail($request->ujian_id);
+        $mapel_id = $ujian->mapel_id;
+        $jenis    = strtolower($ujian->jenis); // 'uts' atau 'uas'
+        $kolom    = 'nilai_' . $jenis;          // 'nilai_uts' atau 'nilai_uas'
+
+        // Ambil semua hasil ujian ini
+        $hasilList = \App\Models\Hasil::where('ujian_id', $ujian->id)->get();
+
+        foreach ($hasilList as $h) {
+            Nilai::updateOrCreate(
+                ['siswa_id' => $h->siswa_id, 'mapel_id' => $mapel_id],
+                [$kolom => $h->nilai]
+            );
+        }
+
+        return back()->with('success', 'Nilai ' . strtoupper($jenis) . ' berhasil dikirim ke menu nilai!');
+    }
+
+    // ── EDIT ─────────────────────────────────────────────────────────
+    public function edit($id)
+    {
+        $nilai = Nilai::with(['siswa', 'mapel'])->findOrFail($id);
+        return view('guru.nilai.edit', compact('nilai'));
+    }
 
     public function update(Request $request, $id)
-{
-    $request->validate([
-        'nilai' => 'required|numeric|min:0|max:100'
-    ]);
+    {
+        $request->validate([
+            'nilai_tugas' => 'nullable|numeric|min:0|max:100',
+            'nilai_uts'   => 'nullable|numeric|min:0|max:100',
+            'nilai_uas'   => 'nullable|numeric|min:0|max:100',
+        ]);
 
-    $nilai = Nilai::findOrFail($id);
+        $nilai = Nilai::findOrFail($id);
+        $nilai->update($request->only(['nilai_tugas', 'nilai_uts', 'nilai_uas']));
 
-    $nilai->update([
-        'nilai' => $request->nilai
-    ]);
-
-    return redirect()->route('guru.nilai.index')
-        ->with('success', 'Nilai berhasil diupdate');
-}
+        return redirect()->route('guru.nilai.index')
+            ->with('success', 'Nilai berhasil diupdate');
+    }
 
     public function destroy($id)
     {
         Nilai::findOrFail($id)->delete();
-
         return redirect()->route('guru.nilai.index')
-                         ->with('success', 'Data nilai berhasil dihapus');
+            ->with('success', 'Data nilai berhasil dihapus');
     }
 }

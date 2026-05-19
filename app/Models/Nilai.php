@@ -11,14 +11,12 @@ class Nilai extends Model
     protected $fillable = [
         'siswa_id',
         'mapel_id',
-
-        // 🔥 lama (jangan dihapus dulu)
-        'nilai',
-
-        // 🔥 baru
+        'nilai',          // lama, jangan dihapus
         'nilai_tugas',
         'nilai_uts',
-        'nilai_uas'
+        'nilai_uas',
+        'nilai_akhir',    // hasil hitung rata-rata (disimpan permanen)
+        'sudah_kirim',    // 0 = belum kirim ke siswa, 1 = sudah kirim
     ];
 
     public function siswa()
@@ -31,19 +29,26 @@ class Nilai extends Model
         return $this->belongsTo(MataPelajaran::class, 'mapel_id');
     }
 
-    // 🔥 helper biar fleksibel (INI KUNCI AMAN)
-    public function getNilaiAkhirAttribute()
+    /**
+     * Accessor: hitung nilai akhir dinamis (kalau kolom nilai_akhir belum diisi)
+     */
+    public function getNilaiAkhirDinamisAttribute()
     {
-        // kalau pakai sistem baru
-        if ($this->nilai_tugas || $this->nilai_uts || $this->nilai_uas) {
-            return collect([
-                $this->nilai_tugas,
-                $this->nilai_uts,
-                $this->nilai_uas
-            ])->filter()->avg();
+        if ($this->nilai_akhir !== null) {
+            return $this->nilai_akhir;
         }
 
-        // fallback ke sistem lama
+        $parts = array_filter([
+            $this->nilai_tugas !== null ? (float) $this->nilai_tugas : null,
+            $this->nilai_uts   !== null ? (float) $this->nilai_uts   : null,
+            $this->nilai_uas   !== null ? (float) $this->nilai_uas   : null,
+        ], fn($v) => $v !== null);
+
+        if (count($parts) > 0) {
+            return round(array_sum($parts) / count($parts), 2);
+        }
+
+        // Fallback ke nilai lama
         return $this->nilai;
     }
 }

@@ -8,91 +8,108 @@ use App\Models\Tugas;
 use App\Models\Kelas;
 use App\Models\MataPelajaran;
 use App\Models\PengumpulanTugas;
-use App\Models\Jadwal; // 🔥 WAJIB
+use App\Models\Jadwal;
 use Illuminate\Support\Facades\Storage;
 use Carbon\Carbon;
 use App\Models\Siswa;
 
 class TugasController extends Controller
 {
-  public function index()
-{
-    $guru = auth()->user()->guru;
+    public function index()
+    {
+        $guru = auth()->user()->guru;
 
-    $tugas = Tugas::with(['kelas', 'mapel'])
-        ->withCount('pengumpulan')
-        ->where('guru_id', $guru->id)
-        ->get();
+        $tugas = Tugas::with(['kelas', 'mapel'])
+            ->withCount('pengumpulan')
+            ->where('guru_id', $guru->id)
+            ->get();
 
-    foreach ($tugas as $t) {
-        $t->total_siswa = Siswa::where('kelas_id', $t->kelas_id)->count();
+        foreach ($tugas as $t) {
+            $t->total_siswa = Siswa::where('kelas_id', $t->kelas_id)->count();
+        }
+
+        $tugasIds = $tugas->pluck('id');
+
+        // -----------------------------------------------------------------
+        // Rekap nilai dikelompokkan per KELAS (untuk filter JS di view)
+        // Format: { "X IPA 1": [ {id, nama, inisial, jumlah_tugas, rata_rata}, … ], … }
+        // -----------------------------------------------------------------
+        $rekapPerKelas = \App\Models\PengumpulanTugas::with(['siswa', 'tugas.kelas'])
+            ->whereIn('tugas_id', $tugasIds)
+            ->whereNotNull('nilai')
+            ->get()
+            ->groupBy(function ($p) {
+                // Kelompokkan berdasarkan nama kelas siswa
+                return $p->tugas->kelas->nama_kelas ?? 'Tidak Diketahui';
+            })
+            ->map(function ($kelasGroup) {
+                // Di dalam setiap kelas, kelompokkan lagi per siswa
+                return $kelasGroup
+                    ->groupBy('siswa_id')
+                    ->map(function ($kumpulan) {
+                        $siswa    = $kumpulan->first()->siswa;
+                        $nilaiList = $kumpulan->pluck('nilai')->map(fn ($n) => (float) $n);
+                        $rata      = round($nilaiList->avg(), 1);
+
+                        return [
+                            'id'           => $siswa->id ?? 0,
+                            'nama'         => $siswa->nama ?? '-',
+                            'inisial'      => strtoupper(substr($siswa->nama ?? 'S', 0, 1))
+                                             . (isset(explode(' ', $siswa->nama ?? '')[1])
+                                                ? strtoupper(substr(explode(' ', $siswa->nama)[1], 0, 1))
+                                                : ''),
+                            'jumlah_tugas' => $kumpulan->count(),
+                            'rata_rata'    => $rata,
+                        ];
+                    })
+                    ->values(); // reset key jadi array numerik
+            });
+
+        // Juga tetap sediakan $rekapNilai (flat) kalau masih dipakai view lain
+        $rekapNilai = $rekapPerKelas->flatten(1)->values();
+
+        return view('guru.tugas.index', compact('tugas', 'rekapNilai', 'rekapPerKelas'));
     }
 
-    // Ambil semua pengumpulan dari semua tugas guru ini
-    $tugasIds = $tugas->pluck('id');
+    public function create()
+    {
+        $kelas = Kelas::all();
+        $guru  = auth()->user()->guru;
+        $mapel = $guru->mapelRel;
 
-    $rekapNilai = \App\Models\PengumpulanTugas::with('siswa')
-        ->whereIn('tugas_id', $tugasIds)
-        ->whereNotNull('nilai')
-        ->get()
-        ->groupBy('siswa_id')
-        ->map(function($kumpulan) {
-            $siswa = $kumpulan->first()->siswa;
-            $nilaiList = $kumpulan->pluck('nilai')->map(fn($n) => (float)$n);
-            $rata = round($nilaiList->avg(), 1);
-            return [
-                'nama'          => $siswa->nama ?? '-',
-                'inisial'       => strtoupper(substr($siswa->nama ?? 'S', 0, 1)),
-                'jumlah_tugas'  => $kumpulan->count(),
-                'rata_rata'     => $rata,
-            ];
-        })
-        ->values();
-
-    return view('guru.tugas.index', compact('tugas', 'rekapNilai'));
-}
-
-public function create()
-{
-    $kelas = Kelas::all();
-    $guru = auth()->user()->guru;
-
-    $mapel = $guru->mapelRel;
-
-    return view('guru.tugas.create', compact('kelas', 'mapel'));
-}
-
-  public function store(Request $request)
-{
-    $guru = auth()->user()->guru;
-
-    $request->validate([
-        'kelas_id' => 'required',
-        'judul' => 'required',
-        'deadline' => 'required',
-        'file' => 'nullable|mimes:pdf,doc,docx,ppt,pptx|max:2048'
-    ]);
-
-    $filePath = null;
-
-    // 🔥 INI BAGIAN PALING PENTING
-    if ($request->hasFile('file')) {
-        $filePath = $request->file('file')->store('tugas_file', 'public');
+        return view('guru.tugas.create', compact('kelas', 'mapel'));
     }
 
-    Tugas::create([
-    'guru_id' => $guru->id,
-    'kelas_id' => $request->kelas_id,
-    'mapel_id' => $guru->mapel_id,
-    'judul' => $request->judul,
-    'deskripsi' => $request->deskripsi,
-    'file' => $filePath,
-    'deadline' => str_replace('T', ' ', $request->deadline),
-]);
+    public function store(Request $request)
+    {
+        $guru = auth()->user()->guru;
 
-    return redirect()->route('guru.tugas.index')
-        ->with('success', 'Tugas berhasil dibuat');
-}
+        $request->validate([
+            'kelas_id' => 'required',
+            'judul'    => 'required',
+            'deadline' => 'required',
+            'file'     => 'nullable|mimes:pdf,doc,docx,ppt,pptx|max:2048',
+        ]);
+
+        $filePath = null;
+        if ($request->hasFile('file')) {
+            $filePath = $request->file('file')->store('tugas_file', 'public');
+        }
+
+        Tugas::create([
+            'guru_id'   => $guru->id,
+            'kelas_id'  => $request->kelas_id,
+            'mapel_id'  => $guru->mapel_id,
+            'judul'     => $request->judul,
+            'deskripsi' => $request->deskripsi,
+            'file'      => $filePath,
+            'deadline'  => str_replace('T', ' ', $request->deadline),
+        ]);
+
+        return redirect()->route('guru.tugas.index')
+            ->with('success', 'Tugas berhasil dibuat');
+    }
+
     public function getMapelByKelas($id)
     {
         $guruId = auth()->user()->guru->id;
@@ -106,94 +123,95 @@ public function create()
 
         return response()->json($mapel);
     }
+
     public function show($id)
-{
-    $tugas = Tugas::with(['kelas', 'mapel'])->findOrFail($id);
+    {
+        $tugas = Tugas::with(['kelas', 'mapel'])->findOrFail($id);
 
-    return view('guru.tugas.show', compact('tugas'));
-}
-public function edit($id)
-{
-    $tugas = Tugas::findOrFail($id);
-    $kelas = Kelas::all();
-
-    return view('guru.tugas.edit', compact('tugas', 'kelas'));
-}
-public function update(Request $request, $id)
-{
-    $request->validate([
-        'judul' => 'required',
-        'kelas_id' => 'required',
-        'deadline' => 'required'
-    ]);
-
-    $tugas = Tugas::findOrFail($id);
-
-    $tugas->update([
-        'judul' => $request->judul,
-        'kelas_id' => $request->kelas_id,
-        'deskripsi' => $request->deskripsi,
-        'deadline' => $request->deadline,
-    ]);
-
-    return redirect()->route('guru.tugas.index')
-        ->with('success', 'Tugas berhasil diupdate');
-}
-
-public function download($id)
-{
-    $tugas = Tugas::findOrFail($id);
-
-    if (!$tugas->file) {
-        abort(404, 'File tidak ditemukan');
+        return view('guru.tugas.show', compact('tugas'));
     }
 
-    $path = storage_path('app/public/' . $tugas->file);
+    public function edit($id)
+    {
+        $tugas = Tugas::findOrFail($id);
+        $kelas = Kelas::all();
 
-    if (!file_exists($path)) {
-        abort(404, 'File tidak ada di storage');
+        return view('guru.tugas.edit', compact('tugas', 'kelas'));
     }
 
-    return response()->download($path);
-}
+    public function update(Request $request, $id)
+    {
+        $request->validate([
+            'judul'    => 'required',
+            'kelas_id' => 'required',
+            'deadline' => 'required',
+        ]);
 
-public function pengumpulan($id)
-{
-    $tugas = Tugas::with(['pengumpulan.siswa'])->findOrFail($id);
+        $tugas = Tugas::findOrFail($id);
 
-    $deadline = Carbon::parse($tugas->deadline);
+        $tugas->update([
+            'judul'     => $request->judul,
+            'kelas_id'  => $request->kelas_id,
+            'deskripsi' => $request->deskripsi,
+            'deadline'  => $request->deadline,
+        ]);
 
-    foreach ($tugas->pengumpulan as $p) {
-        $waktu = Carbon::parse($p->created_at);
-        $p->status = $waktu->gt($deadline) ? 'telat' : 'tepat';
+        return redirect()->route('guru.tugas.index')
+            ->with('success', 'Tugas berhasil diupdate');
     }
 
-    // Siapkan data untuk JS rata-rata
-    $pengumpulanJson = $tugas->pengumpulan->map(function($p) {
-        return [
-            'nama'    => $p->siswa->nama ?? '-',
-            'inisial' => strtoupper(substr($p->siswa->nama ?? 'S', 0, 1)),
-            'nilai'   => $p->nilai,
-        ];
-    });
+    public function download($id)
+    {
+        $tugas = Tugas::findOrFail($id);
 
-    return view('guru.tugas.pengumpulan', compact('tugas', 'pengumpulanJson'));
-}
+        if (!$tugas->file) {
+            abort(404, 'File tidak ditemukan');
+        }
 
-public function nilai(Request $request, $id)
-{
-    $request->validate([
-        'nilai' => 'required|integer|min:0|max:100',
-        'komentar' => 'nullable'
-    ]);
+        $path = storage_path('app/public/' . $tugas->file);
 
-    $pengumpulan = \App\Models\PengumpulanTugas::findOrFail($id);
+        if (!file_exists($path)) {
+            abort(404, 'File tidak ada di storage');
+        }
 
-    $pengumpulan->update([
-        'nilai' => $request->nilai,
-        'komentar' => $request->komentar
-    ]);
+        return response()->download($path);
+    }
 
-    return back()->with('success', 'Nilai berhasil disimpan');
-}
+    public function pengumpulan($id)
+    {
+        $tugas    = Tugas::with(['pengumpulan.siswa'])->findOrFail($id);
+        $deadline = Carbon::parse($tugas->deadline);
+
+        foreach ($tugas->pengumpulan as $p) {
+            $waktu    = Carbon::parse($p->created_at);
+            $p->status = $waktu->gt($deadline) ? 'telat' : 'tepat';
+        }
+
+        $pengumpulanJson = $tugas->pengumpulan->map(function ($p) {
+            return [
+                'nama'    => $p->siswa->nama ?? '-',
+                'inisial' => strtoupper(substr($p->siswa->nama ?? 'S', 0, 1)),
+                'nilai'   => $p->nilai,
+            ];
+        });
+
+        return view('guru.tugas.pengumpulan', compact('tugas', 'pengumpulanJson'));
+    }
+
+    public function nilai(Request $request, $id)
+    {
+        $request->validate([
+            'nilai'    => 'required|integer|min:0|max:100',
+            'komentar' => 'nullable',
+        ]);
+
+        $pengumpulan = \App\Models\PengumpulanTugas::findOrFail($id);
+
+        $pengumpulan->update([
+            'nilai'    => $request->nilai,
+            'komentar' => $request->komentar,
+        ]);
+
+        return back()->with('success', 'Nilai berhasil disimpan');
+    }
 }

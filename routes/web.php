@@ -66,9 +66,7 @@ Route::post('/logout', function () {
 
 /*
 |--------------------------------------------------------------------------
-| OTP LOGIN (Langkah 1 & 2 di halaman login)
-| — sendOtp  : kirim OTP ke email SAJA atau WhatsApp SAJA (tidak keduanya)
-| — loginOtp : login dengan email + password + kode OTP
+| OTP LOGIN
 |--------------------------------------------------------------------------
 */
 Route::post('/send-otp', [OtpController::class, 'sendOtp'])->name('send.otp');
@@ -76,7 +74,7 @@ Route::post('/login-otp', [OtpController::class, 'loginOtp'])->name('login.otp')
 
 /*
 |--------------------------------------------------------------------------
-| FORCE PASSWORD (ganti password default setelah login pertama)
+| FORCE PASSWORD
 |--------------------------------------------------------------------------
 */
 Route::middleware('auth')->group(function () {
@@ -90,10 +88,9 @@ Route::middleware('auth')->group(function () {
 
 /*
 |--------------------------------------------------------------------------
-| LUPA PASSWORD — via OTP (flow: kirim OTP → verify → reset)
+| LUPA PASSWORD
 |--------------------------------------------------------------------------
 */
-// Langkah 1: Form kirim OTP lupa password
 Route::get('/forgot-password', function () {
     return view('auth.forgot-password');
 })->name('password.request');
@@ -101,14 +98,12 @@ Route::get('/forgot-password', function () {
 Route::post('/forgot-password', [AuthController::class, 'sendOtp'])
     ->name('password.email');
 
-// Langkah 2: Verify OTP
 Route::get('/verify-otp', [AuthController::class, 'showVerifyOtp'])
     ->name('verify.otp.form');
 
 Route::post('/verify-otp', [AuthController::class, 'verifyOtp'])
     ->name('verify.otp');
 
-// Langkah 3: Reset password baru
 Route::get('/reset-password', [AuthController::class, 'showResetPassword'])
     ->name('reset.password.form');
 
@@ -145,7 +140,7 @@ Route::middleware(['auth', 'force.password'])
         Route::post('/siswa/bulk/nonaktif', [SiswaController::class, 'bulkNonaktif'])->name('siswa.bulkNonaktif');
     });
 
-// Siswa nonaktif/aktifkan (di luar middleware force.password agar fleksibel)
+// Siswa nonaktif/aktifkan
 Route::prefix('admin')->name('admin.')->group(function () {
     Route::post('/siswa/nonaktif/{id}', [SiswaController::class, 'nonaktif'])->name('siswa.nonaktif');
     Route::get('/siswa/aktifkan/{id}', [SiswaController::class, 'aktifkan'])->name('siswa.aktifkan');
@@ -172,12 +167,19 @@ Route::middleware(['auth', 'force.password'])
         Route::put('/absensi/update/{id}', [AbsensiController::class, 'update'])->name('absensi.update');
 
         // NILAI
+        // CATATAN: route dengan path statis (tanpa parameter) didaftarkan lebih dulu
+        // agar Laravel tidak salah parsing saat ada route dengan {id}
         Route::get('/nilai', [GuruNilai::class, 'index'])->name('nilai.index');
         Route::get('/nilai/input', [GuruNilai::class, 'inputNilai'])->name('nilai.input');
         Route::get('/get-siswa/{id}', [GuruNilai::class, 'getSiswaByKelas'])->name('get.siswa');
         Route::post('/nilai/store-batch', [GuruNilai::class, 'storeBatch'])->name('nilai.storeBatch');
+        Route::post('/nilai/masukkan-tugas', [GuruNilai::class, 'masukkanNilaiTugas'])->name('nilai.masukkanTugas');
+        Route::post('/nilai/masukkan-ujian', [GuruNilai::class, 'masukkanNilaiUjian'])->name('nilai.masukkanUjian');
+        Route::post('/nilai/hitung-rata', [GuruNilai::class, 'hitungRata'])->name('nilai.hitungRata');
+        Route::post('/nilai/kirim-ke-siswa', [GuruNilai::class, 'kirimKeSiswa'])->name('nilai.kirimKeSiswa');
         Route::get('/nilai/{id}/edit', [GuruNilai::class, 'edit'])->name('nilai.edit');
         Route::put('/nilai/{id}', [GuruNilai::class, 'update'])->name('nilai.update');
+        Route::delete('/nilai/{id}', [GuruNilai::class, 'destroy'])->name('nilai.destroy');
 
         // TUGAS
         Route::resource('tugas', TugasController::class);
@@ -197,26 +199,8 @@ Route::middleware(['auth', 'force.password'])
         Route::delete('/ujian/{id}', [GuruUjian::class, 'destroy'])->name('ujian.destroy');
         Route::get('/ujian/{id}/soal', [GuruUjian::class, 'soal'])->name('ujian.soal');
         Route::post('/ujian/{id}/soal', [GuruUjian::class, 'storeSoal'])->name('ujian.storeSoal');
+        Route::post('/ujian/{id}/kirim', [GuruUjian::class, 'kirim'])->name('ujian.kirim');
     });
-
-     // routes/web.php — tambahkan di dalam group guru
-
-    // di dalam group guru
-// UJIAN
-Route::get('/ujian', [GuruUjian::class, 'index'])->name('ujian.index');
-Route::get('/ujian/create', [GuruUjian::class, 'create'])->name('ujian.create');
-Route::post('/ujian/store', [GuruUjian::class, 'store'])->name('ujian.store');
-Route::get('/ujian/{id}/edit', [GuruUjian::class, 'edit'])->name('ujian.edit');
-Route::put('/ujian/{id}', [GuruUjian::class, 'update'])->name('ujian.update');
-Route::delete('/ujian/{id}', [GuruUjian::class, 'destroy'])->name('ujian.destroy');
-Route::get('/ujian/{id}/soal', [GuruUjian::class, 'soal'])->name('ujian.soal');
-Route::post('/ujian/{id}/soal', [GuruUjian::class, 'storeSoal'])->name('ujian.storeSoal');
-Route::post('/ujian/{id}/kirim', [GuruUjian::class, 'kirim'])->name('ujian.kirim'); // ✅ TAMBAH DI SINI
-
-// Guru: cek status middleware tambahan (jika diperlukan)
-Route::middleware(['auth', 'cek.status'])->prefix('guru')->name('guru.')->group(function () {
-    // tambahkan route khusus cek.status di sini jika ada
-});
 
 /*
 |--------------------------------------------------------------------------

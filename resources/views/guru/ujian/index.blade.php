@@ -33,6 +33,9 @@
 .sw-btn-success:hover{background:#047857;color:#fff;transform:translateY(-1px);}
 .sw-btn-info{background:var(--info-light);color:var(--info);border:1px solid #BAE6FD;}
 .sw-btn-info:hover{background:var(--info);color:#fff;}
+/* Tombol baru: kirim ke menu nilai */
+.sw-btn-nilai{background:#f5f3ff;color:#7c3aed;border:1px solid #ddd6fe;font-size:12px;}
+.sw-btn-nilai:hover{background:#7c3aed;color:#fff;}
 .sw-card{background:var(--surface);border-radius:var(--radius-lg);border:1px solid var(--border);box-shadow:0 1px 3px rgba(0,0,0,.05);overflow:hidden;margin-bottom:22px;}
 .sw-card-hd{display:flex;align-items:center;justify-content:space-between;padding:16px 22px;border-bottom:1px solid var(--border);background:linear-gradient(135deg,#F5F3FF 0%,#EEF2FF 100%);}
 .sw-card-hd-left{display:flex;align-items:center;gap:10px;}
@@ -54,6 +57,7 @@
 .sw-jenis-uas{background:var(--warning-light);border:1px solid #FDE68A;color:var(--warning);}
 .sw-status-draft{display:inline-flex;align-items:center;gap:5px;background:#F3F4F6;border:1px solid #D1D5DB;border-radius:99px;padding:3px 10px;font-size:11px;font-weight:700;color:#6B7280;}
 .sw-status-kirim{display:inline-flex;align-items:center;gap:5px;background:var(--success-light);border:1px solid #A7F3D0;border-radius:99px;padding:3px 10px;font-size:11px;font-weight:700;color:var(--success);}
+.sw-status-nilai{display:inline-flex;align-items:center;gap:5px;background:#f5f3ff;border:1px solid #ddd6fe;border-radius:99px;padding:3px 10px;font-size:11px;font-weight:700;color:#7c3aed;}
 .sw-ujian-actions{display:flex;gap:8px;align-items:center;flex-shrink:0;flex-wrap:wrap;}
 .sw-empty{padding:70px 20px;text-align:center;}
 .sw-empty-ring{width:80px;height:80px;border-radius:50%;background:var(--primary-light);border:2px solid #C7D2FE;display:flex;align-items:center;justify-content:center;margin:0 auto 20px;color:var(--primary);}
@@ -63,7 +67,6 @@
 /* NILAI SECTION */
 .sw-nilai-card{background:var(--surface);border-radius:var(--radius-lg);border:1px solid var(--border);box-shadow:0 1px 3px rgba(0,0,0,.05);overflow:hidden;}
 .sw-nilai-hd{display:flex;align-items:center;justify-content:space-between;padding:16px 22px;border-bottom:1px solid var(--border);background:linear-gradient(135deg,#ECFDF5,#D1FAE5);}
-.sw-nilai-filter{display:flex;align-items:center;gap:10px;flex-wrap:wrap;}
 .sw-select-kelas{padding:8px 14px;border:1.5px solid var(--border);border-radius:var(--radius-md);font-size:13px;font-weight:600;color:var(--text-dark);background:var(--neutral-light);font-family:'Plus Jakarta Sans',sans-serif;outline:none;}
 .sw-select-kelas:focus{border-color:var(--success);box-shadow:0 0 0 3px rgba(5,150,105,.1);}
 .sw-table{width:100%;border-collapse:collapse;}
@@ -163,7 +166,7 @@
                 </div>
 
                 <div class="sw-ujian-actions">
-                    {{-- Tombol Kirim (hanya kalau masih draft) --}}
+                    {{-- Tombol Kirim ke Siswa (hanya kalau masih draft) --}}
                     @if($u->status_kirim == 'draft')
                     <form action="{{ route('guru.ujian.kirim', $u->id) }}" method="POST" class="d-inline"
                           onsubmit="return confirm('Kirim ujian ini ke semua kelas yang dipilih?')">
@@ -171,6 +174,19 @@
                         <button type="submit" class="sw-btn sw-btn-sm sw-btn-success">
                             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M22 2L11 13"/><path d="M22 2L15 22 11 13 2 9l20-7z"/></svg>
                             Kirim ke Siswa
+                        </button>
+                    </form>
+                    @endif
+
+                    {{-- ✅ Tombol Kirim ke Menu Nilai (hanya kalau sudah terkirim & ada hasil) --}}
+                    @if($u->status_kirim == 'terkirim')
+                    <form action="{{ route('guru.nilai.masukkanUjian') }}" method="POST" class="d-inline"
+                          onsubmit="return confirm('Kirim nilai {{ $u->jenis }} ujian ini ke Menu Nilai? Nilai siswa yang sudah mengerjakan akan masuk ke rekap nilai.')">
+                        @csrf
+                        <input type="hidden" name="ujian_id" value="{{ $u->id }}">
+                        <button type="submit" class="sw-btn sw-btn-sm sw-btn-nilai">
+                            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10"/></svg>
+                            → Menu Nilai ({{ $u->jenis }})
                         </button>
                     </form>
                     @endif
