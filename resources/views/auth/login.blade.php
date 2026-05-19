@@ -341,6 +341,105 @@
             flex-shrink: 0;
             color: #6EE7B7;
         }
+
+        /* ================================================================
+           RESPONSIVE MOBILE
+           Layout: logo + info sekolah di atas, form login di bawah
+           ================================================================ */
+        @media (max-width: 768px) {
+            .page {
+                flex-direction: column;
+                height: auto;
+                min-height: 100vh;
+            }
+
+            /* LEFT — pindah ke atas */
+            .left {
+                width: 100%;
+                padding: 32px 24px 28px;
+                order: 1;
+            }
+
+            /* Garis pembatas horizontal */
+            .left::after {
+                right: unset;
+                top: unset;
+                left: 0;
+                bottom: 0;
+                width: 100%;
+                height: 1px;
+                background: linear-gradient(to right, transparent, #C7D2FE 30%, #C7D2FE 70%, transparent);
+            }
+
+            .logo {
+                width: 180px;
+                margin-bottom: 20px;
+            }
+
+            .left-title {
+                font-size: 18px;
+            }
+
+            .left-sub {
+                font-size: 12px;
+            }
+
+            .left-badge {
+                margin-top: 20px;
+                font-size: 11px;
+            }
+
+            /* RIGHT — form login di bawah */
+            .right {
+                order: 2;
+                padding: 36px 24px 52px;
+                min-height: auto;
+                align-items: flex-start;
+                justify-content: center;
+            }
+
+            /* Sembunyikan dekorasi lingkaran di mobile */
+            .right::before,
+            .right::after {
+                display: none;
+            }
+
+            .form-box {
+                width: 100%;
+                max-width: 420px;
+            }
+
+            .form-title {
+                font-size: 22px;
+            }
+
+            .form-sub {
+                margin-bottom: 20px;
+            }
+
+            .input-wrap input {
+                font-size: 16px; /* Cegah auto-zoom di iOS */
+            }
+        }
+
+        /* Extra small phones */
+        @media (max-width: 380px) {
+            .left {
+                padding: 24px 20px 22px;
+            }
+
+            .logo {
+                width: 150px;
+            }
+
+            .right {
+                padding: 28px 20px 44px;
+            }
+
+            .form-title {
+                font-size: 20px;
+            }
+        }
     </style>
 </head>
 

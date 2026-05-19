@@ -95,8 +95,7 @@ Route::get('/forgot-password', function () {
     return view('auth.forgot-password');
 })->name('password.request');
 
-Route::post('/forgot-password', [AuthController::class, 'sendOtp'])
-    ->name('password.email');
+Route::post('forgot-password', [AuthController::class, 'sendForgotPasswordOtp'])->name('password.email');
 
 Route::get('/verify-otp', [AuthController::class, 'showVerifyOtp'])
     ->name('verify.otp.form');

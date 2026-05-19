@@ -227,19 +227,37 @@ class AuthController extends Controller
     }
 
     // ================= VERIFY OTP (halaman terpisah jika ada) =================
-    public function showVerifyOtp()
-    {
-        return view('auth.verify-otp');
+    // ================= VERIFY OTP (lupa password) =================
+public function showVerifyOtp()
+{
+    return view('auth.verify-otp');
+}
+
+public function verifyOtp(Request $request)
+{
+    $user = User::find(session('otp_user'));
+
+    if (!$user) {
+        return back()->with('error', 'Sesi tidak valid, ulangi dari awal.');
     }
 
-    public function verifyOtp(Request $request)
-    {
-        if ((string) $request->otp === (string) session('otp')) {
-            return redirect()->route('reset.password.form');
-        }
-
-        return back()->with('error', 'OTP salah');
+    // Cek OTP dari kolom database, bukan session
+    if ((string)$request->otp !== (string)$user->otp) {
+        return back()->with('error', 'Kode OTP salah.');
     }
+
+    if (!$user->otp_expired_at || now()->gt($user->otp_expired_at)) {
+        return back()->with('error', 'OTP sudah kadaluarsa, kirim ulang.');
+    }
+
+    // OTP valid — hapus OTP, redirect ke reset password
+    $user->update([
+        'otp'            => null,
+        'otp_expired_at' => null,
+    ]);
+
+    return redirect()->route('reset.password.form');
+}
 
     // ================= RESET PASSWORD (via OTP lupa password) =================
     public function showResetPassword()
@@ -295,4 +313,30 @@ class AuthController extends Controller
             default => redirect('/login'),
         };
     }
+
+    // ================= KIRIM OTP LUPA PASSWORD =================
+// ================= KIRIM OTP LUPA PASSWORD =================
+public function sendForgotPasswordOtp(Request $request)
+{
+    $request->validate([
+        'email' => 'required|email|exists:users,email',
+    ], [
+        'email.exists' => 'Email tidak terdaftar dalam sistem.',
+    ]);
+
+    $user = User::where('email', $request->email)->first();
+
+    // Kirim OTP via email menggunakan OtpService yang sudah ada
+    app(\App\Services\OtpService::class)->send($user, 'email');
+
+    // Simpan ke session untuk dipakai saat verifikasi & reset
+    session([
+        'otp_user'  => $user->id,
+        'email'     => $user->email,
+    ]);
+
+    // Redirect ke halaman verifikasi OTP
+    return redirect()->route('verify.otp')
+                     ->with('success', 'OTP telah dikirim ke ' . $user->email);
+}
 }
