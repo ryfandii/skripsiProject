@@ -218,7 +218,7 @@ table.tugas-table { width:100%; border-collapse:collapse; min-width:780px; }
     text-transform:uppercase; letter-spacing:0.6px;
 }
 .kelas-result-avg {
-    display:inline-flex; align-items:center; gap:6px;
+    display:inline-flex; align-items:center; gap:7px;
     font-size:12.5px; font-weight:700;
 }
 
