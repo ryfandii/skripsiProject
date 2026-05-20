@@ -14,15 +14,13 @@ class OtpController extends Controller
         $method = $request->input('method', 'email');
 
         if ($method === 'email') {
-            // ── EMAIL ──
             $request->validate([
                 'email' => 'required|email|exists:users,email',
             ]);
 
-            $user = User::where('email', $request->email)->first();
+            $user = User::with(['guru', 'siswa'])->where('email', $request->email)->first();
 
         } else {
-            // ── WHATSAPP ──
             $request->validate([
                 'telepon' => 'required|string',
             ]);
@@ -33,7 +31,7 @@ class OtpController extends Controller
             }
             $no08 = '0' . substr($no, 2);
 
-            $user = User::whereHas('guru', function ($q) use ($no, $no08) {
+            $user = User::with(['guru', 'siswa'])->whereHas('guru', function ($q) use ($no, $no08) {
                 $q->where('telepon', $no)
                   ->orWhere('telepon', $no08)
                   ->orWhere('telepon', 'like', '%' . substr($no, -9) . '%');
@@ -48,13 +46,21 @@ class OtpController extends Controller
             }
         }
 
-        // Kirim OTP sesuai method (email SAJA atau WA SAJA)
+        // ✅ FIX: blokir guru nonaktif
+        if ($user->role === 'guru' && $user->guru && $user->guru->status === 'nonaktif') {
+            return back()->with('error', 'Akun Anda telah dinonaktifkan. Hubungi administrator.');
+        }
+
+        // ✅ FIX BARU: blokir siswa nonaktif
+        if ($user->role === 'siswa' && $user->siswa && $user->siswa->status === 'nonaktif') {
+            return back()->with('error', 'Akun Anda telah dinonaktifkan. Hubungi administrator.');
+        }
+
         app(\App\Services\OtpService::class)->send($user, $method);
 
-        // Simpan email ke session untuk prefill form login
         session(['email' => $user->email]);
 
-        return back()->with('otp_sent', 'OTP berhasil dikirim!');
+      return back()->with('otp_sent', 'OTP berhasil dikirim!');
     }
 
     // ================= LOGIN DENGAN OTP =================
@@ -66,7 +72,7 @@ class OtpController extends Controller
             'otp'      => 'nullable|digits:6',
         ]);
 
-        $user = User::where('email', $request->email)->first();
+        $user = User::with(['guru', 'siswa'])->where('email', $request->email)->first();
 
         if (!$user) {
             return back()->with('error', 'User tidak ditemukan');
@@ -74,6 +80,22 @@ class OtpController extends Controller
 
         if (!\Hash::check($request->password, $user->password)) {
             return back()->with('error', 'Password salah');
+        }
+
+        // ✅ FIX: cek status nonaktif untuk guru
+        if ($user->role === 'guru') {
+            $user->load('guru');
+            if (!$user->guru || $user->guru->status === 'nonaktif') {
+                return back()->with('error', 'Akun Anda telah dinonaktifkan. Hubungi administrator.');
+            }
+        }
+
+        // ✅ FIX BARU: cek status nonaktif untuk siswa
+        if ($user->role === 'siswa') {
+            $user->load('siswa');
+            if (!$user->siswa || $user->siswa->status === 'nonaktif') {
+                return back()->with('error', 'Akun Anda telah dinonaktifkan. Hubungi administrator.');
+            }
         }
 
         // Guru & Siswa wajib OTP
@@ -99,7 +121,6 @@ class OtpController extends Controller
         \Auth::login($user);
         $request->session()->regenerate();
 
-        // Hapus OTP setelah dipakai
         if (in_array($user->role, ['guru', 'siswa'])) {
             $user->update(['otp' => null, 'otp_expired_at' => null]);
         }

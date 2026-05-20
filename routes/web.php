@@ -69,6 +69,7 @@ Route::post('/logout', function () {
 | OTP LOGIN
 |--------------------------------------------------------------------------
 */
+// Route ini pakai OtpController, BUKAN AuthController
 Route::post('/send-otp', [OtpController::class, 'sendOtp'])->name('send.otp');
 Route::post('/login-otp', [OtpController::class, 'loginOtp'])->name('login.otp');
 

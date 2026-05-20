@@ -64,7 +64,8 @@ class AuthController extends Controller
                 'email' => 'required|email|exists:users,email',
             ]);
 
-            $user = User::where('email', $request->email)->first();
+            // ✅ FIX: tambah with('guru') agar relasi ter-load
+            $user = User::with('guru')->where('email', $request->email)->first();
 
         } else {
             $request->validate([
@@ -76,7 +77,8 @@ class AuthController extends Controller
                 $no = '62' . substr($no, 1);
             }
 
-            $user = User::whereHas('guru', function ($q) use ($no) {
+            // ✅ FIX: tambah with('guru') agar relasi ter-load
+            $user = User::with('guru')->whereHas('guru', function ($q) use ($no) {
                 $q->whereRaw("REGEXP_REPLACE(telepon, '[^0-9]', '') LIKE ?", ["%{$no}%"]);
             })->orWhereHas('siswa', function ($q) use ($no) {
                 $q->whereRaw("REGEXP_REPLACE(telepon, '[^0-9]', '') LIKE ?", ["%{$no}%"]);
@@ -85,6 +87,11 @@ class AuthController extends Controller
             if (!$user) {
                 return back()->with('error', 'Nomor WhatsApp tidak ditemukan.');
             }
+        }
+
+        // ✅ FIX: blokir pengiriman OTP untuk guru nonaktif
+        if ($user->role === 'guru' && $user->guru && $user->guru->status === 'nonaktif') {
+            return back()->with('error', 'Akun Anda telah dinonaktifkan. Hubungi administrator.');
         }
 
         // Kirim OTP sesuai method — email SAJA atau WA SAJA
@@ -107,7 +114,8 @@ class AuthController extends Controller
         'otp'      => 'nullable|digits:6',
     ]);
 
-    $user = User::where('email', $request->email)->first();
+    // ✅ FIX: tambah with('guru') agar relasi ter-load
+    $user = User::with('guru')->where('email', $request->email)->first();
 
     if (!$user) {
         return back()->with('error', 'Email tidak ditemukan.');
@@ -133,6 +141,14 @@ class AuthController extends Controller
     // GURU / SISWA WAJIB OTP
     // =================================================
     if (in_array($user->role, ['guru', 'siswa'])) {
+
+        // ✅ FIX: cek status nonaktif sebelum proses OTP
+        if ($user->role === 'guru') {
+            $user->load('guru'); // reload fresh dari DB
+            if (!$user->guru || $user->guru->status === 'nonaktif') {
+                return back()->with('error', 'Akun Anda telah dinonaktifkan. Hubungi administrator.');
+            }
+        }
 
         if (empty($request->otp)) {
             return back()->with('error', 'OTP wajib diisi.');
@@ -227,34 +243,35 @@ class AuthController extends Controller
     }
 
     // ================= VERIFY OTP (halaman terpisah jika ada) =================
-    // ================= VERIFY OTP (lupa password) =================
-public function showVerifyOtp()
-{
-    return view('auth.verify-otp');
-}
+    public function showVerifyOtp()
+    {
+        return view('auth.verify-otp');
+    }
 
-public function verifyOtp(Request $request)
+    public function verifyOtp(Request $request)
 {
-    $user = User::find(session('otp_user'));
+    $request->validate([
+        'otp' => 'required|digits:6'
+    ]);
+
+    $user = User::where('email', session('email'))->first();
 
     if (!$user) {
-        return back()->with('error', 'Sesi tidak valid, ulangi dari awal.');
+        return back()->with('error', 'User tidak ditemukan');
     }
 
-    // Cek OTP dari kolom database, bukan session
+    // cek OTP
     if ((string)$request->otp !== (string)$user->otp) {
-        return back()->with('error', 'Kode OTP salah.');
+        return back()->with('error', 'OTP salah');
     }
 
+    // cek expired
     if (!$user->otp_expired_at || now()->gt($user->otp_expired_at)) {
-        return back()->with('error', 'OTP sudah kadaluarsa, kirim ulang.');
+        return back()->with('error', 'OTP sudah kadaluarsa');
     }
 
-    // OTP valid — hapus OTP, redirect ke reset password
-    $user->update([
-        'otp'            => null,
-        'otp_expired_at' => null,
-    ]);
+    // simpan user reset password
+    session(['otp_user' => $user->id]);
 
     return redirect()->route('reset.password.form');
 }
@@ -314,29 +331,36 @@ public function verifyOtp(Request $request)
         };
     }
 
-    // ================= KIRIM OTP LUPA PASSWORD =================
-// ================= KIRIM OTP LUPA PASSWORD =================
-public function sendForgotPasswordOtp(Request $request)
+        // ================= FORGOT PASSWORD OTP =================
+    public function sendForgotPasswordOtp(Request $request)
 {
     $request->validate([
-        'email' => 'required|email|exists:users,email',
-    ], [
-        'email.exists' => 'Email tidak terdaftar dalam sistem.',
+        'email' => 'required|email'
     ]);
 
     $user = User::where('email', $request->email)->first();
 
-    // Kirim OTP via email menggunakan OtpService yang sudah ada
-    app(\App\Services\OtpService::class)->send($user, 'email');
+    if (!$user) {
+        return back()->with('error', 'Email tidak ditemukan');
+    }
 
-    // Simpan ke session untuk dipakai saat verifikasi & reset
-    session([
-        'otp_user'  => $user->id,
-        'email'     => $user->email,
+    $otp = rand(100000, 999999);
+
+    $user->update([
+        'otp' => $otp,
+        'otp_expired_at' => now()->addMinutes(5),
     ]);
 
-    // Redirect ke halaman verifikasi OTP
-    return redirect()->route('verify.otp')
-                     ->with('success', 'OTP telah dikirim ke ' . $user->email);
+    Mail::raw("Kode OTP reset password Anda adalah: $otp", function ($message) use ($user) {
+        $message->to($user->email)
+                ->subject('OTP Reset Password');
+    });
+
+    session([
+        'email' => $user->email
+    ]);
+
+    return redirect()->route('verify.otp.form')
+        ->with('success', 'OTP reset password berhasil dikirim');
 }
 }

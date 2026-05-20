@@ -154,10 +154,10 @@ setTimeout(dismissToast, 4000);
                 <p class="page-subtitle">Rekap nilai tugas, UTS, UAS &amp; hitung rata-rata siswa</p>
             </div>
         </div>
-        <a href="{{ route('guru.nilai.input') }}" class="btn-primary">
+        <!-- <a href="{{ route('guru.nilai.input') }}" class="btn-primary">
             <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4"/></svg>
             Input Nilai Manual
-        </a>
+        </a> -->
     </div>
 
     {{-- INFO --}}
@@ -293,20 +293,23 @@ setTimeout(dismissToast, 4000);
         </div>
 
         {{-- FOOTER + TOMBOL KIRIM SEMUA KELAS --}}
-        <div class="table-footer">
-            <span>{{ $nilai->count() }} data nilai</span>
-            <div style="display:flex;align-items:center;gap:10px;">
-                <span>{{ now()->format('d M Y') }}</span>
-                <form action="{{ route('guru.nilai.kirimKeSiswa') }}" method="POST" style="margin:0;">
-                    @csrf
-                    <button type="submit" class="btn-violet" style="padding:7px 14px;font-size:12.5px;"
-                        onclick="return confirm('Kirim nilai ke SEMUA kelas? Siswa di semua kelas akan bisa melihat nilai mereka.')">
-                        <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"/></svg>
-                        Kirim ke Semua Kelas
-                    </button>
-                </form>
-            </div>
-        </div>
+       <div class="table-footer">
+    <span>{{ $nilai->count() }} data nilai</span>
+    <div style="display:flex;align-items:center;gap:10px;">
+        <span>{{ now()->format('d M Y') }}</span>
+        {{-- ✅ Hanya tampil jika TIDAK ada filter kelas --}}
+        @if(!request('kelas_id'))
+        <form action="{{ route('guru.nilai.kirimKeSiswa') }}" method="POST" style="margin:0;">
+            @csrf
+            <button type="submit" class="btn-violet" style="padding:7px 14px;font-size:12.5px;"
+                onclick="return confirm('Kirim nilai ke SEMUA kelas? Siswa di semua kelas akan bisa melihat nilai mereka.')">
+                <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"/></svg>
+                Kirim ke Semua Kelas
+            </button>
+        </form>
+        @endif
+    </div>
+</div>
     </div>
 
 </div>

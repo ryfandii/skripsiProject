@@ -88,7 +88,7 @@ class TugasController extends Controller
             'kelas_id' => 'required',
             'judul'    => 'required',
             'deadline' => 'required',
-            'file'     => 'nullable|mimes:pdf,doc,docx,ppt,pptx|max:2048',
+            'file' => 'nullable|max:10240',
         ]);
 
         $filePath = null;
@@ -139,27 +139,42 @@ class TugasController extends Controller
         return view('guru.tugas.edit', compact('tugas', 'kelas'));
     }
 
-    public function update(Request $request, $id)
-    {
-        $request->validate([
-            'judul'    => 'required',
-            'kelas_id' => 'required',
-            'deadline' => 'required',
-        ]);
+   // SESUDAH
+public function update(Request $request, $id)
+{
+    $request->validate([
+        'judul'    => 'required',
+        'kelas_id' => 'required',
+        'deadline' => 'required',
+        'file'     => 'nullable|max:10240', // ✅ validasi file
+    ], [
+        'file.max' => 'Ukuran file maksimal 10MB.',
+    ]);
 
-        $tugas = Tugas::findOrFail($id);
+    $tugas = Tugas::findOrFail($id);
 
-        $tugas->update([
-            'judul'     => $request->judul,
-            'kelas_id'  => $request->kelas_id,
-            'deskripsi' => $request->deskripsi,
-            'deadline'  => $request->deadline,
-        ]);
+    $updateData = [
+        'judul'     => $request->judul,
+        'kelas_id'  => $request->kelas_id,
+        'deskripsi' => $request->deskripsi,
+        'deadline'  => $request->deadline,
+    ];
 
-        return redirect()->route('guru.tugas.index')
-            ->with('success', 'Tugas berhasil diupdate');
+    // ✅ Jika ada file baru diupload
+    if ($request->hasFile('file')) {
+        // Hapus file lama jika ada
+        if ($tugas->file && Storage::disk('public')->exists($tugas->file)) {
+            Storage::disk('public')->delete($tugas->file);
+        }
+        // Simpan file baru
+        $updateData['file'] = $request->file('file')->store('tugas_file', 'public');
     }
 
+    $tugas->update($updateData);
+
+    return redirect()->route('guru.tugas.index')
+        ->with('success', 'Tugas berhasil diupdate');
+}
     public function download($id)
     {
         $tugas = Tugas::findOrFail($id);

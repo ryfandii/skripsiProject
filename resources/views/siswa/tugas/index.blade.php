@@ -429,7 +429,7 @@ table.tugas-table { width: 100%; border-collapse: collapse; min-width: 720px; }
                         <th class="center">Aksi</th>
                     </tr>
                 </thead>
-                <!-- <tbody>
+                <tbody>
                     @forelse($tugas as $t)
                     <tr>
                         <td><span class="judul-cell">{{ $t->judul }}</span></td>
@@ -516,7 +516,7 @@ table.tugas-table { width: 100%; border-collapse: collapse; min-width: 720px; }
                         </td>
                     </tr>
                     @endforelse
-                </tbody> -->
+                </tbody>
             </table>
         </div>
 
