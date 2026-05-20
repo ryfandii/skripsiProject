@@ -370,8 +370,8 @@ select.form-control {
             <span class="form-card-header-label">Informasi Data Guru</span>
         </div>
 
-        <div class="form-card-body">
-            <form action="{{ route('admin.guru.update', $guru->id) }}" method="POST">
+       <div class="form-card-body">
+            <form id="formEditGuru" action="{{ route('admin.guru.update', $guru->id) }}" method="POST">
                 @csrf
                 @method('PUT')
 
@@ -418,24 +418,27 @@ select.form-control {
                            class="form-control" placeholder="Masukkan alamat lengkap">
                 </div>
 
-            {{-- Tombol di dalam form, sebelum </form> --}}
+                {{-- FOOTER ADA DI DALAM FORM --}}
+                <div class="form-footer" style="margin: 28px -24px -28px; border-radius: 0 0 18px 18px;">
+                    <a href="{{ route('admin.guru.index') }}" class="btn-cancel">
+                        <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/>
+                        </svg>
+                        Batalkan
+                    </a>
+                    <button type="submit" class="btn-update">
+                        <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/>
+                        </svg>
+                        Simpan Perubahan
+                    </button>
+                </div>
+
             </form>
         </div>
 
-        <div class="form-footer">
-            <a href="{{ route('admin.guru.index') }}" class="btn-cancel">
-                <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                    <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/>
-                </svg>
-                Batalkan
-            </a>
-            <button type="submit" form="formEditGuru" class="btn-update" id="btnUpdate">
-                <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                    <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/>
-                </svg>
-                Simpan Perubahan
-            </button>
-        </div>
+        {{-- HAPUS .form-footer yang lama di luar form --}}
+
 
     </div>
 
