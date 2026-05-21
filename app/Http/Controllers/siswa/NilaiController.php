@@ -56,64 +56,88 @@ class NilaiController extends Controller
      * Fallback rekap dari PengumpulanTugas & Hasil (sistem lama)
      */
     private function getRekapsLama($siswa_id): array
-    {
-        $tugas = \App\Models\PengumpulanTugas::with('tugas.mapel')
-            ->where('siswa_id', $siswa_id)->get();
+{
+    // Ambil data siswa untuk tahu kelas_id-nya
+    $siswa = \App\Models\Siswa::findOrFail($siswa_id);
 
-        $ujian = \App\Models\Hasil::with('ujian.mapel')
-            ->where('siswa_id', $siswa_id)->get();
+    // Ambil SEMUA tugas di kelas siswa ini (bukan hanya yang sudah dikumpul)
+    $semuaTugas = \App\Models\Tugas::with('mapel')
+        ->where('kelas_id', $siswa->kelas_id)
+        ->get();
 
-        $data = [];
+    // Ambil pengumpulan siswa ini saja (untuk cek nilai)
+    $dikumpulkan = \App\Models\PengumpulanTugas::where('siswa_id', $siswa_id)
+        ->get()
+        ->keyBy('tugas_id'); // key by tugas_id supaya mudah dicari
 
-        foreach ($tugas as $t) {
-            $mapel_id = $t->tugas->mapel->id ?? null;
-            if (!$mapel_id) continue;
-            if (!isset($data[$mapel_id])) {
-                $data[$mapel_id] = [
-                    'mapel'     => $t->tugas->mapel->nama_mapel,
-                    'tugas_arr' => [],
-                    'uts'       => null,
-                    'uas'       => null,
-                ];
-            }
-            if ($t->nilai !== null) {
-                $data[$mapel_id]['tugas_arr'][] = $t->nilai;
-            }
-        }
+    // Ambil hasil ujian
+    $ujian = \App\Models\Hasil::with('ujian.mapel')
+        ->where('siswa_id', $siswa_id)->get();
 
-        foreach ($ujian as $u) {
-            $mapel_id = $u->ujian->mapel->id ?? null;
-            if (!$mapel_id) continue;
-            if (!isset($data[$mapel_id])) {
-                $data[$mapel_id] = [
-                    'mapel'     => $u->ujian->mapel->nama_mapel,
-                    'tugas_arr' => [],
-                    'uts'       => null,
-                    'uas'       => null,
-                ];
-            }
-            if (strtoupper($u->ujian->jenis) === 'UTS') $data[$mapel_id]['uts'] = $u->nilai;
-            if (strtoupper($u->ujian->jenis) === 'UAS') $data[$mapel_id]['uas'] = $u->nilai;
-        }
+    $data = [];
 
-        foreach ($data as $k => $d) {
-            $rata_tugas = count($d['tugas_arr'])
-                ? array_sum($d['tugas_arr']) / count($d['tugas_arr'])
-                : null;
-            $uts  = $d['uts'] ?? null;
-            $uas  = $d['uas'] ?? null;
-            $parts = array_filter([$rata_tugas, $uts, $uas], fn($v) => $v !== null);
-            $rata  = count($parts) ? round(array_sum($parts) / count($parts)) : null;
+    // Loop SEMUA tugas (termasuk yang belum dikumpul)
+    foreach ($semuaTugas as $t) {
+        $mapel_id = $t->mapel->id ?? null;
+        if (!$mapel_id) continue;
 
-            $data[$k] = [
-                'mapel' => $d['mapel'],
-                'tugas' => $rata_tugas !== null ? round($rata_tugas) : null,
-                'uts'   => $uts !== null ? round($uts) : null,
-                'uas'   => $uas !== null ? round($uas) : null,
-                'rata'  => $rata,
+        if (!isset($data[$mapel_id])) {
+            $data[$mapel_id] = [
+                'mapel'     => $t->mapel->nama_mapel,
+                'tugas_arr' => [],
+                'uts'       => null,
+                'uas'       => null,
             ];
         }
 
-        return $data;
+        // Cek apakah tugas ini sudah dikumpul
+        if (isset($dikumpulkan[$t->id]) && $dikumpulkan[$t->id]->nilai !== null) {
+            // Sudah dikumpul dan sudah dinilai → pakai nilainya
+            $data[$mapel_id]['tugas_arr'][] = $dikumpulkan[$t->id]->nilai;
+        } else {
+            // Belum dikumpul atau belum dinilai → nilai 0
+            $data[$mapel_id]['tugas_arr'][] = 0;
+        }
     }
+
+    // Loop hasil ujian
+    foreach ($ujian as $u) {
+        $mapel_id = $u->ujian->mapel->id ?? null;
+        if (!$mapel_id) continue;
+
+        if (!isset($data[$mapel_id])) {
+            $data[$mapel_id] = [
+                'mapel'     => $u->ujian->mapel->nama_mapel,
+                'tugas_arr' => [],
+                'uts'       => null,
+                'uas'       => null,
+            ];
+        }
+
+        if (strtoupper($u->ujian->jenis) === 'UTS') $data[$mapel_id]['uts'] = $u->nilai;
+        if (strtoupper($u->ujian->jenis) === 'UAS') $data[$mapel_id]['uas'] = $u->nilai;
+    }
+
+    // Hitung rata-rata akhir per mapel
+    foreach ($data as $k => $d) {
+        $rata_tugas = count($d['tugas_arr'])
+            ? array_sum($d['tugas_arr']) / count($d['tugas_arr'])
+            : null;
+
+        $uts   = $d['uts'] ?? null;
+        $uas   = $d['uas'] ?? null;
+        $parts = array_filter([$rata_tugas, $uts, $uas], fn($v) => $v !== null);
+        $rata  = count($parts) ? round(array_sum($parts) / count($parts)) : null;
+
+        $data[$k] = [
+            'mapel' => $d['mapel'],
+            'tugas' => $rata_tugas !== null ? round($rata_tugas) : null,
+            'uts'   => $uts !== null ? round($uts) : null,
+            'uas'   => $uas !== null ? round($uas) : null,
+            'rata'  => $rata,
+        ];
+    }
+
+    return $data;
+}
 }

@@ -46,65 +46,73 @@ class NilaiController extends Controller
 
     // ── HITUNG RATA-RATA: simpan nilai_akhir ke kolom rata ──────────
     public function hitungRata(Request $request)
-    {
-        $request->validate([
-            'kelas_id' => 'required',
-        ]);
+{
+    $request->validate([
+        'kelas_id' => 'required',
+    ]);
 
-        $user     = auth()->user();
-        $mapel_id = $user->mapel_id;
+    $user     = auth()->user();
+    $mapel_id = $user->mapel_id;
 
-        // Ambil semua nilai siswa di kelas ini untuk mapel guru
-        $nilaiList = Nilai::with('siswa')
-            ->where('mapel_id', $mapel_id)
-            ->whereHas('siswa', fn($q) => $q->where('kelas_id', $request->kelas_id))
-            ->get();
+    // ── BARU: Hitung nilai_tugas otomatis dari pengumpulan_tugas ──
+    // Ambil semua tugas mapel ini di kelas ini
+    $semuaTugas = \App\Models\Tugas::where('mapel_id', $mapel_id)
+        ->where('kelas_id', $request->kelas_id)
+        ->get();
 
-        foreach ($nilaiList as $n) {
-            // Hitung rata-rata dari tugas, uts, uas
-            $parts = [];
-            if ($n->nilai_tugas !== null) $parts[] = (float) $n->nilai_tugas;
-            if ($n->nilai_uts   !== null) $parts[] = (float) $n->nilai_uts;
-            if ($n->nilai_uas   !== null) $parts[] = (float) $n->nilai_uas;
+    // Ambil semua siswa di kelas ini
+    $siswaList = \App\Models\Siswa::where('kelas_id', $request->kelas_id)->get();
 
-            if (count($parts) > 0) {
-                $rata = round(array_sum($parts) / count($parts), 2);
-                $n->update(['nilai_akhir' => $rata]);
+    foreach ($siswaList as $siswa) {
+        $totalNilai  = 0;
+        $jumlahTugas = count($semuaTugas);
+
+        if ($jumlahTugas > 0) {
+            foreach ($semuaTugas as $tugas) {
+                $pengumpulan = \App\Models\PengumpulanTugas::where('tugas_id', $tugas->id)
+                    ->where('siswa_id', $siswa->id)
+                    ->first();
+
+                // Sudah kumpul dan dinilai → pakai nilainya, selain itu → 0
+                if ($pengumpulan && $pengumpulan->nilai !== null) {
+                    $totalNilai += $pengumpulan->nilai;
+                } else {
+                    $totalNilai += 0;
+                }
             }
-        }
 
-        return redirect()->route('guru.nilai.index', ['kelas_id' => $request->kelas_id])
-            ->with('success', 'Rata-rata berhasil dihitung!');
+            $rata_tugas = round($totalNilai / $jumlahTugas, 2);
+
+            // Simpan ke kolom nilai_tugas
+            \App\Models\Nilai::updateOrCreate(
+                ['siswa_id' => $siswa->id, 'mapel_id' => $mapel_id],
+                ['nilai_tugas' => $rata_tugas]
+            );
+        }
+    }
+    // ── SELESAI hitung nilai_tugas otomatis ──
+
+    // Sekarang hitung rata-rata akhir (tugas + uts + uas)
+    $nilaiList = \App\Models\Nilai::with('siswa')
+        ->where('mapel_id', $mapel_id)
+        ->whereHas('siswa', fn($q) => $q->where('kelas_id', $request->kelas_id))
+        ->get();
+
+    foreach ($nilaiList as $n) {
+        $parts = [];
+        if ($n->nilai_tugas !== null) $parts[] = (float) $n->nilai_tugas;
+        if ($n->nilai_uts   !== null) $parts[] = (float) $n->nilai_uts;
+        if ($n->nilai_uas   !== null) $parts[] = (float) $n->nilai_uas;
+
+        if (count($parts) > 0) {
+            $rata = round(array_sum($parts) / count($parts), 2);
+            $n->update(['nilai_akhir' => $rata]);
+        }
     }
 
-    // ── KIRIM NILAI KE SISWA (per kelas atau semua) ─────────────────
-    public function kirimKeSiswa(Request $request)
-    {
-        $user     = auth()->user();
-        $mapel_id = $user->mapel_id;
-
-        $query = Nilai::where('mapel_id', $mapel_id)
-            ->whereNotNull('nilai_akhir');
-
-        // Kalau ada kelas_id, kirim per kelas saja
-        if ($request->kelas_id) {
-            $query->whereHas('siswa', fn($q) => $q->where('kelas_id', $request->kelas_id));
-        }
-
-        $nilaiList = $query->get();
-
-        foreach ($nilaiList as $n) {
-            $n->update(['sudah_kirim' => 1]);
-        }
-
-        $msg = $request->kelas_id
-            ? 'Nilai berhasil dikirim ke siswa kelas ini!'
-            : 'Nilai berhasil dikirim ke semua kelas!';
-
-        return redirect()->route('guru.nilai.index')
-            ->with('success', $msg);
-    }
-
+    return redirect()->route('guru.nilai.index', ['kelas_id' => $request->kelas_id])
+        ->with('success', 'Rata-rata berhasil dihitung!');
+}
     // ── HALAMAN INPUT NILAI PER KELAS ────────────────────────────────
     public function inputNilai()
     {

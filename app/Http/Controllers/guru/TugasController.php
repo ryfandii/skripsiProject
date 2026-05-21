@@ -16,99 +16,85 @@ use App\Models\Siswa;
 class TugasController extends Controller
 {
     public function index()
-    {
-        $guru = auth()->user()->guru;
+{
+    $guru = auth()->user()->guru;
 
-        $tugas = Tugas::with(['kelas', 'mapel'])
-            ->withCount('pengumpulan')
-            ->where('guru_id', $guru->id)
-            ->get();
+    $tugas = Tugas::with(['kelas', 'mapel'])
+        ->withCount('pengumpulan')
+        ->where('guru_id', $guru->id)
+        ->get();
 
-        foreach ($tugas as $t) {
-            $t->total_siswa = Siswa::where('kelas_id', $t->kelas_id)->count();
+    foreach ($tugas as $t) {
+        $t->total_siswa = Siswa::where('kelas_id', $t->kelas_id)->count();
+    }
+
+    $tugasIds = $tugas->pluck('id');
+
+    // Kelompokkan tugas berdasarkan kelas
+    // Format: { "X IPA 1": [ {tugas_id, ...}, ... ], ... }
+    $tugasPerKelas = $tugas->groupBy(fn($t) => $t->kelas->nama_kelas ?? 'Tidak Diketahui');
+
+    // Ambil semua pengumpulan (termasuk yang belum dinilai)
+    $semuaPengumpulan = \App\Models\PengumpulanTugas::with(['siswa'])
+        ->whereIn('tugas_id', $tugasIds)
+        ->get();
+
+    $rekapPerKelas = collect();
+
+    foreach ($tugasPerKelas as $namaKelas => $tugasDiKelas) {
+        $tugasIdsKelas = $tugasDiKelas->pluck('id')->toArray();
+
+        // Ambil semua siswa di kelas ini
+        $kelasId   = $tugasDiKelas->first()->kelas_id;
+        $semuaSiswa = Siswa::where('kelas_id', $kelasId)->get();
+
+        $rekapSiswa = collect();
+
+        foreach ($semuaSiswa as $siswa) {
+            $totalNilai   = 0;
+            $jumlahTugas  = count($tugasIdsKelas); // total tugas di kelas ini
+
+            foreach ($tugasIdsKelas as $tid) {
+                $pengumpulan = $semuaPengumpulan
+                    ->where('tugas_id', $tid)
+                    ->where('siswa_id', $siswa->id)
+                    ->first();
+
+                if ($pengumpulan && $pengumpulan->nilai !== null) {
+                    // Sudah kumpul dan sudah dinilai
+                    $totalNilai += $pengumpulan->nilai;
+                } else {
+                    // Belum kumpul ATAU sudah kumpul tapi belum dinilai → 0
+                    $totalNilai += 0;
+                }
+            }
+
+            $rata = $jumlahTugas > 0
+                ? round($totalNilai / $jumlahTugas, 1)
+                : 0;
+
+            // Buat inisial nama
+            $nameParts = explode(' ', $siswa->nama ?? 'S');
+            $inisial   = strtoupper(substr($nameParts[0], 0, 1))
+                       . (isset($nameParts[1]) ? strtoupper(substr($nameParts[1], 0, 1)) : '');
+
+            $rekapSiswa->push([
+                'id'           => $siswa->id,
+                'nama'         => $siswa->nama,
+                'inisial'      => $inisial,
+                'jumlah_tugas' => $jumlahTugas,
+                'rata_rata'    => $rata,
+            ]);
         }
 
-        $tugasIds = $tugas->pluck('id');
-
-        // -----------------------------------------------------------------
-        // Rekap nilai dikelompokkan per KELAS (untuk filter JS di view)
-        // Format: { "X IPA 1": [ {id, nama, inisial, jumlah_tugas, rata_rata}, … ], … }
-        // -----------------------------------------------------------------
-        $rekapPerKelas = \App\Models\PengumpulanTugas::with(['siswa', 'tugas.kelas'])
-            ->whereIn('tugas_id', $tugasIds)
-            ->whereNotNull('nilai')
-            ->get()
-            ->groupBy(function ($p) {
-                // Kelompokkan berdasarkan nama kelas siswa
-                return $p->tugas->kelas->nama_kelas ?? 'Tidak Diketahui';
-            })
-            ->map(function ($kelasGroup) {
-                // Di dalam setiap kelas, kelompokkan lagi per siswa
-                return $kelasGroup
-                    ->groupBy('siswa_id')
-                    ->map(function ($kumpulan) {
-                        $siswa    = $kumpulan->first()->siswa;
-                        $nilaiList = $kumpulan->pluck('nilai')->map(fn ($n) => (float) $n);
-                        $rata      = round($nilaiList->avg(), 1);
-
-                        return [
-                            'id'           => $siswa->id ?? 0,
-                            'nama'         => $siswa->nama ?? '-',
-                            'inisial'      => strtoupper(substr($siswa->nama ?? 'S', 0, 1))
-                                             . (isset(explode(' ', $siswa->nama ?? '')[1])
-                                                ? strtoupper(substr(explode(' ', $siswa->nama)[1], 0, 1))
-                                                : ''),
-                            'jumlah_tugas' => $kumpulan->count(),
-                            'rata_rata'    => $rata,
-                        ];
-                    })
-                    ->values(); // reset key jadi array numerik
-            });
-
-        // Juga tetap sediakan $rekapNilai (flat) kalau masih dipakai view lain
-        $rekapNilai = $rekapPerKelas->flatten(1)->values();
-
-        return view('guru.tugas.index', compact('tugas', 'rekapNilai', 'rekapPerKelas'));
+        $rekapPerKelas[$namaKelas] = $rekapSiswa->values();
     }
 
-    public function create()
-    {
-        $kelas = Kelas::all();
-        $guru  = auth()->user()->guru;
-        $mapel = $guru->mapelRel;
+    // Flat list kalau masih dipakai
+    $rekapNilai = $rekapPerKelas->flatten(1)->values();
 
-        return view('guru.tugas.create', compact('kelas', 'mapel'));
-    }
-
-    public function store(Request $request)
-    {
-        $guru = auth()->user()->guru;
-
-        $request->validate([
-            'kelas_id' => 'required',
-            'judul'    => 'required',
-            'deadline' => 'required',
-            'file' => 'nullable|max:10240',
-        ]);
-
-        $filePath = null;
-        if ($request->hasFile('file')) {
-            $filePath = $request->file('file')->store('tugas_file', 'public');
-        }
-
-        Tugas::create([
-            'guru_id'   => $guru->id,
-            'kelas_id'  => $request->kelas_id,
-            'mapel_id'  => $guru->mapel_id,
-            'judul'     => $request->judul,
-            'deskripsi' => $request->deskripsi,
-            'file'      => $filePath,
-            'deadline'  => str_replace('T', ' ', $request->deadline),
-        ]);
-
-        return redirect()->route('guru.tugas.index')
-            ->with('success', 'Tugas berhasil dibuat');
-    }
+    return view('guru.tugas.index', compact('tugas', 'rekapNilai', 'rekapPerKelas'));
+}
 
     public function getMapelByKelas($id)
     {
