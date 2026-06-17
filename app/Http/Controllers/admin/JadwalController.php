@@ -54,6 +54,11 @@ class JadwalController extends Controller
             'jam_selesai' => 'required',
         ]);
 
+         // ✅ Validasi jam selesai harus lebih besar dari jam mulai
+    if ($request->jam_selesai <= $request->jam_mulai) {
+        return back()->withInput()->with('error', 'Jam selesai harus lebih besar dari jam mulai!');
+    }
+
         // 🔥 CEK BENTROK KELAS
         $cekKelas = Jadwal::where('kelas_id', $request->kelas_id)
             ->where('hari', $request->hari)
@@ -119,6 +124,11 @@ class JadwalController extends Controller
             'jam_mulai' => 'required',
             'jam_selesai' => 'required',
         ]);
+
+        // ✅ Validasi jam selesai harus lebih besar dari jam mulai
+    if ($request->jam_selesai <= $request->jam_mulai) {
+        return back()->withInput()->with('error', 'Jam selesai harus lebih besar dari jam mulai!');
+    }
 
         $jadwal->update([
             'kelas_id' => $request->kelas_id,

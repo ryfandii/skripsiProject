@@ -123,6 +123,18 @@ Route::middleware(['auth', 'force.password'])
         Route::get('/', [AdminDashboard::class, 'index']);
         Route::get('/dashboard', [AdminDashboard::class, 'index'])->name('dashboard');
 
+        Route::get('/profile', [ProfileController::class, 'index'])->name('profile');
+        Route::post('/profile', [ProfileController::class, 'update'])->name('profile.update');
+
+        Route::get('/guru/{id}/nonaktif', [GuruController::class, 'nonaktif'])->name('guru.nonaktif');
+        Route::get('/guru/{id}/aktifkan', [GuruController::class, 'aktifkan'])->name('guru.aktifkan');
+
+        // ✅ Route spesifik siswa HARUS di atas resource
+        Route::post('/siswa/bulk/nonaktif', [SiswaController::class, 'bulkNonaktif'])->name('siswa.bulkNonaktif');
+        Route::post('/siswa/nonaktif/{id}', [SiswaController::class, 'nonaktif'])->name('siswa.nonaktif');
+        Route::get('/siswa/aktifkan/{id}', [SiswaController::class, 'aktifkan'])->name('siswa.aktifkan');
+
+        // ✅ Resource SETELAH route spesifik
         Route::resource('guru', GuruController::class);
         Route::resource('siswa', SiswaController::class);
         Route::resource('mapel', MataPelajaranController::class);
@@ -130,15 +142,8 @@ Route::middleware(['auth', 'force.password'])
         Route::resource('jadwal', AdminJadwal::class);
 
         Route::get('jadwal/grid', [AdminJadwal::class, 'grid'])->name('jadwal.grid');
-
-        Route::get('/profile', [ProfileController::class, 'index'])->name('profile');
-        Route::post('/profile', [ProfileController::class, 'update'])->name('profile.update');
-
-        Route::get('/guru/{id}/nonaktif', [GuruController::class, 'nonaktif'])->name('guru.nonaktif');
-        Route::get('/guru/{id}/aktifkan', [GuruController::class, 'aktifkan'])->name('guru.aktifkan');
-
-        Route::post('/siswa/bulk/nonaktif', [SiswaController::class, 'bulkNonaktif'])->name('siswa.bulkNonaktif');
     });
+    
 
 // Siswa nonaktif/aktifkan
 Route::prefix('admin')->name('admin.')->group(function () {

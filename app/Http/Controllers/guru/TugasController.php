@@ -215,4 +215,52 @@ public function update(Request $request, $id)
 
         return back()->with('success', 'Nilai berhasil disimpan');
     }
+
+   public function create()
+{
+    $guru  = auth()->user()->guru;
+    $kelas = Kelas::all();
+
+    // Ambil satu mapel pertama yang diajarkan guru ini
+    $mapel = Jadwal::where('guru_id', $guru->id)
+        ->join('mata_pelajarans', 'jadwals.mata_pelajaran_id', '=', 'mata_pelajarans.id')
+        ->select('mata_pelajarans.id', 'mata_pelajarans.nama_mapel')
+        ->first();
+
+    return view('guru.tugas.create', compact('kelas', 'guru', 'mapel'));
+}
+
+public function store(Request $request)
+{
+    $request->validate([
+        'judul'    => 'required',
+        'kelas_id' => 'required',
+        'mapel_id' => 'required',
+        'deadline' => 'required',
+        'file'     => 'nullable|max:10240',
+    ], [
+        'mapel_id.required' => 'Mata pelajaran belum diset, hubungi admin untuk mengatur jadwal.',
+        'file.max'          => 'Ukuran file maksimal 10MB.',
+    ]);
+
+    $guru = auth()->user()->guru;
+
+    $filePath = null;
+    if ($request->hasFile('file')) {
+        $filePath = $request->file('file')->store('tugas_file', 'public');
+    }
+
+    Tugas::create([
+        'judul'            => $request->judul,
+        'deskripsi'        => $request->deskripsi,
+        'kelas_id'         => $request->kelas_id,
+        'mapel_id'         => $request->mapel_id, // ✅ sesuaikan nama kolom
+        'guru_id'          => $guru->id,
+        'deadline'         => $request->deadline,
+        'file'             => $filePath,
+    ]);
+
+    return redirect()->route('guru.tugas.index')
+        ->with('success', 'Tugas berhasil dibuat');
+}
 }

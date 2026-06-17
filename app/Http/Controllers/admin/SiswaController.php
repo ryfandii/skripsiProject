@@ -41,6 +41,18 @@ class SiswaController extends Controller
 
     \Log::info('STORE DIPANGGIL');
     
+    if ($request->has('telepon')) {
+        $telepon = $request->telepon;
+        // Hapus tanda plus jika ada (+62 -> 62)
+        $telepon = ltrim($telepon, '+');
+        // Jika tipenya string diawali dengan 62, ganti jadi 0
+        if (strpos($telepon, '62') === 0) {
+            $telepon = '0' . substr($telepon, 2);
+        }
+        // Masukkan kembali nilai yang sudah rapi ke dalam request
+        $request->merge(['telepon' => $telepon]);
+    }
+    
         $request->validate([
         'nama' => 'required',
         'jenis_kelamin' => 'required',
@@ -72,10 +84,10 @@ $siswa = Siswa::create([
       $user = User::create([
     'name' => $request->nama,
     'email' => $request->email,
-    'password' => Hash::make('12345678'), // 🔥 default
+    'password' => Hash::make('12345678'), // ðŸ”¥ default
     'role' => 'siswa', // atau guru
     'siswa_id' => $siswa->id,
-    'is_default_password' => true // 🔥 WAJIB
+    'is_default_password' => true // ðŸ”¥ WAJIB
 ]);
 
 /** @var \App\Models\User $user */
@@ -95,6 +107,19 @@ app(OtpService::class)->send($user);
     // ================= UPDATE =================
     public function update(Request $request, Siswa $siswa)
     {
+        
+        if ($request->has('telepon')) {
+        $telepon = $request->telepon;
+        // Hapus tanda plus jika ada (+62 -> 62)
+        $telepon = ltrim($telepon, '+');
+        // Jika tipenya string diawali dengan 62, ganti jadi 0
+        if (strpos($telepon, '62') === 0) {
+            $telepon = '0' . substr($telepon, 2);
+        }
+        // Masukkan kembali nilai yang sudah rapi ke dalam request
+        $request->merge(['telepon' => $telepon]);
+    }
+    
         $request->validate([
     'nama' => 'required',
     'jenis_kelamin' => 'required',

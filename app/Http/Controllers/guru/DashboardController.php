@@ -1,6 +1,6 @@
 <?php
 
-namespace App\Http\Controllers\guru;
+namespace App\Http\Controllers\Guru;
 
 use App\Models\Jadwal;
 use App\Models\Absensi;

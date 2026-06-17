@@ -200,6 +200,28 @@ class NilaiController extends Controller
         return back()->with('success', 'Nilai ' . strtoupper($jenis) . ' berhasil dikirim ke menu nilai!');
     }
 
+    // ── KIRIM NILAI KE SISWA ─────────────────────────────────────────
+public function kirimKeSiswa(Request $request)
+{
+    $request->validate([
+        'kelas_id' => 'required',
+    ]);
+
+    $user     = auth()->user();
+    $mapel_id = $user->mapel_id;
+
+    $nilaiList = Nilai::with('siswa')
+        ->where('mapel_id', $mapel_id)
+        ->whereHas('siswa', fn($q) => $q->where('kelas_id', $request->kelas_id))
+        ->get();
+
+    foreach ($nilaiList as $n) {
+        $n->update(['sudah_kirim' => true]); // ✅ ganti is_published → sudah_kirim
+    }
+
+    return back()->with('success', 'Nilai berhasil dikirim ke siswa!');
+}
+
     // ── EDIT ─────────────────────────────────────────────────────────
     public function edit($id)
     {

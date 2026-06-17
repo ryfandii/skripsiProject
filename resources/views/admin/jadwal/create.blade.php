@@ -150,17 +150,47 @@
                     </div>
                 </div>
 
-                {{-- JAM --}}
-                <div class="field-row">
-                    <div class="field">
-                        <label class="field-label">Jam Mulai</label>
-                        <input type="time" name="jam_mulai" value="{{ old('jam_mulai') }}" class="field-input">
-                    </div>
-                    <div class="field">
-                        <label class="field-label">Jam Selesai</label>
-                        <input type="time" name="jam_selesai" value="{{ old('jam_selesai') }}" class="field-input">
-                    </div>
-                </div>
+   {{-- JAM --}}
+<div class="field-row">
+    <div class="field">
+        <label class="field-label">Jam Mulai</label>
+        <div class="select-wrap">
+            <select name="jam_mulai" class="field-select">
+                <option value="">-- Pilih Jam Mulai --</option>
+                @php
+                    $slots = [];
+                    $start = strtotime('07:00');
+                    $end   = strtotime('15:10');
+                    for ($t = $start; $t <= $end; $t += 10 * 60) {
+                        $slots[] = date('H:i', $t);
+                        if (($t + 5 * 60) <= $end) {
+                            $slots[] = date('H:i', $t + 5 * 60);
+                        }
+                    }
+                    sort($slots);
+                @endphp
+                @foreach($slots as $slot)
+                    <option value="{{ $slot }}" {{ old('jam_mulai') == $slot ? 'selected' : '' }}>
+                        {{ $slot }}
+                    </option>
+                @endforeach
+            </select>
+        </div>
+    </div>
+    <div class="field">
+        <label class="field-label">Jam Selesai</label>
+        <div class="select-wrap">
+            <select name="jam_selesai" class="field-select">
+                <option value="">-- Pilih Jam Selesai --</option>
+                @foreach($slots as $slot)
+                    <option value="{{ $slot }}" {{ old('jam_selesai') == $slot ? 'selected' : '' }}>
+                        {{ $slot }}
+                    </option>
+                @endforeach
+            </select>
+        </div>
+    </div>
+</div>
 
                 <div class="form-footer">
                     <button type="submit" class="btn-submit"><i class="fas fa-save"></i> Simpan</button>

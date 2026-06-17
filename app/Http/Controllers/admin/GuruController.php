@@ -33,6 +33,15 @@ class GuruController extends Controller
     // ================= STORE =================
     public function store(Request $request)
 {
+    if ($request->has('telepon')) {
+        $telepon = $request->telepon;
+        $telepon = ltrim($telepon, '+');
+        if (strpos($telepon, '62') === 0) {
+            $telepon = '0' . substr($telepon, 2);
+        }
+        $request->merge(['telepon' => $telepon]);
+    }
+    
     $request->validate([
         'nama' => 'required',
         'nip' => 'required|unique:gurus,nip',
@@ -42,7 +51,7 @@ class GuruController extends Controller
         'email' => 'required|email|unique:users,email'
     ]);
 
-    // 🔥 CEK JIKA SUDAH ADA (ANTI DOUBLE INSERT)
+    // ðŸ”¥ CEK JIKA SUDAH ADA (ANTI DOUBLE INSERT)
     if (Guru::where('nip', $request->nip)->exists()) {
         return back()->withErrors(['nip' => 'NIP sudah ada'])->withInput();
     }
@@ -83,6 +92,15 @@ class GuruController extends Controller
     // ================= UPDATE =================
     public function update(Request $request, Guru $guru)
     {
+        if ($request->has('telepon')) {
+        $telepon = $request->telepon;
+        $telepon = ltrim($telepon, '+');
+        if (strpos($telepon, '62') === 0) {
+            $telepon = '0' . substr($telepon, 2);
+        }
+        $request->merge(['telepon' => $telepon]);
+    }
+        
         $request->validate([
             'nama' => 'required',
             'nip' => 'required|unique:gurus,nip,' . $guru->id,
@@ -94,18 +112,18 @@ class GuruController extends Controller
                 $guru->update([
             'nama' => $request->nama,
             'nip' => $request->nip,
-            'mapel_id' => $request->mapel_id, // 🔥 INI WAJIB
+            'mapel_id' => $request->mapel_id, // ðŸ”¥ INI WAJIB
             'alamat' => $request->alamat,
             'telepon' => $request->telepon,
         ]);
 
-        // 🔥 UPDATE USER (TELEPON JUGA UPDATE)
+        // ðŸ”¥ UPDATE USER (TELEPON JUGA UPDATE)
         $user = User::where('guru_id', $guru->id)->first();
         if ($user) {
             $user->update([
                 'name' => $request->nama,
                 'mapel_id' => $request->mapel_id,
-                'telepon' => $request->telepon // ✅ WAJIB ADA
+                'telepon' => $request->telepon // âœ… WAJIB ADA
             ]);
         }
 

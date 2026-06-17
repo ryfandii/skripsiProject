@@ -100,7 +100,9 @@ class AuthController extends Controller
         // Simpan email ke session untuk prefill form login
         session(['email' => $user->email]);
 
-        return back()->with('otp_sent', 'OTP berhasil dikirim!');
+        return back()
+            ->with('otp_sent', 'OTP berhasil dikirim!')
+            ->with('need_otp', true);  // ← tambahkan ini
     }
 
 
@@ -108,82 +110,116 @@ class AuthController extends Controller
     // Dipanggil dari form Langkah 2 di halaman login
  public function loginOtp(Request $request)
 {
+    \Log::info('=== LOGIN OTP CALLED - AuthController ===');
     $request->validate([
         'email'    => 'required|email',
         'password' => 'required',
         'otp'      => 'nullable|digits:6',
     ]);
 
-    // ✅ FIX: tambah with('guru') agar relasi ter-load
-    $user = User::with('guru')->where('email', $request->email)->first();
+    $user = User::with(['guru', 'siswa'])->where('email', $request->email)->first();
 
     if (!$user) {
         return back()->with('error', 'Email tidak ditemukan.');
     }
 
-    // Cek password
     if (!Hash::check($request->password, $user->password)) {
         return back()->with('error', 'Password salah.');
     }
 
-    // =================================================
-    // ADMIN → LANGSUNG LOGIN TANPA OTP
-    // =================================================
+    // ADMIN → langsung login tanpa OTP
     if ($user->role === 'admin') {
-
         Auth::login($user);
         $request->session()->regenerate();
-
         return redirect()->route('admin.dashboard');
     }
 
-    // =================================================
-    // GURU / SISWA WAJIB OTP
-    // =================================================
-    if (in_array($user->role, ['guru', 'siswa'])) {
+    // Cek status nonaktif
+    if ($user->role === 'guru' && (!$user->guru || $user->guru->status === 'nonaktif')) {
+        return back()->with('error', 'Akun Anda telah dinonaktifkan.');
+    }
+    if ($user->role === 'siswa' && (!$user->siswa || $user->siswa->status === 'nonaktif')) {
+        return back()->with('error', 'Akun Anda telah dinonaktifkan.');
+    }
 
-        // ✅ FIX: cek status nonaktif sebelum proses OTP
-        if ($user->role === 'guru') {
-            $user->load('guru'); // reload fresh dari DB
-            if (!$user->guru || $user->guru->status === 'nonaktif') {
-                return back()->with('error', 'Akun Anda telah dinonaktifkan. Hubungi administrator.');
-            }
-        }
+    // ── Cek cookie trusted device (per user per device) ──
+    $cookieKey     = 'trusted_device_' . $user->id;
+    // SESUDAH
+$cookieValue = \Illuminate\Support\Facades\Cookie::get($cookieKey);
+    $trustedDevices = $user->trusted_devices ?? [];
+    $isDeviceTrusted = $cookieValue && in_array($cookieValue, $trustedDevices);
+
+// DEBUG SEMENTARA — hapus setelah fix
+\Log::info('COOKIE CHECK', [
+    'cookie_key'   => $cookieKey,
+    'cookie_value' => $cookieValue,
+    'trusted_list' => $trustedDevices,
+    'is_trusted'   => $isDeviceTrusted,
+]);
+
+    // Device BARU → wajib OTP
+    if (!$isDeviceTrusted) {
 
         if (empty($request->otp)) {
-            return back()->with('error', 'OTP wajib diisi.');
+            return back()
+                ->withInput()
+                ->with('error', 'Perangkat baru terdeteksi! Silakan minta OTP terlebih dahulu.')
+                ->with('need_otp', true);
         }
 
         if (!$user->otp) {
-            return back()->with('error', 'OTP belum diminta.');
+            return back()->withInput()
+                ->with('error', 'OTP belum diminta.')
+                ->with('need_otp', true);
         }
 
         if ((string)$request->otp !== (string)$user->otp) {
-            return back()->with('error', 'Kode OTP salah.');
+            return back()->withInput()
+                ->with('error', 'Kode OTP salah.')
+                ->with('need_otp', true);
         }
 
         if (!$user->otp_expired_at || now()->gt($user->otp_expired_at)) {
-            return back()->with('error', 'OTP sudah kadaluarsa.');
+            return back()->withInput()
+                ->with('error', 'OTP sudah kadaluarsa.')
+                ->with('need_otp', true);
         }
 
-        // Login
+        // Generate token unik untuk device ini
+        $deviceToken = \Illuminate\Support\Str::random(60);
+
+        // Simpan ke trusted_devices (maks 10)
+        $trustedDevices[] = $deviceToken;
+        if (count($trustedDevices) > 10) array_shift($trustedDevices);
+
+        $user->update([
+            'otp'             => null,
+            'otp_expired_at'  => null,
+            'trusted_devices' => $trustedDevices,
+        ]);
+
         Auth::login($user);
         $request->session()->regenerate();
 
-        // Hapus OTP
-        $user->update([
-            'otp' => null,
-            'otp_expired_at' => null,
-        ]);
+        // Simpan cookie selama 365 hari
+        $cookie = cookie($cookieKey, $deviceToken, 60 * 24 * 365, '/', null, false, true);
 
         return match ($user->role) {
-            'guru'  => redirect()->route('guru.dashboard'),
-            'siswa' => redirect()->route('siswa.dashboard'),
-            default => redirect('/'),
+            'guru'  => redirect()->route('guru.dashboard')->withCookie($cookie),
+            'siswa' => redirect()->route('siswa.dashboard')->withCookie($cookie),
+            default => redirect('/')->withCookie($cookie),
         };
     }
 
-    return back()->with('error', 'Role tidak dikenali.');
+    // Device LAMA → langsung login
+    Auth::login($user);
+    $request->session()->regenerate();
+
+    return match ($user->role) {
+        'guru'  => redirect()->route('guru.dashboard'),
+        'siswa' => redirect()->route('siswa.dashboard'),
+        default => redirect('/'),
+    };
 }
 
 

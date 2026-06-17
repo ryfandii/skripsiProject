@@ -562,63 +562,74 @@
                  LANGKAH 2: Login
                  Field OTP disembunyikan otomatis untuk admin
                  ============================================================ --}}
-            <form method="POST" action="{{ route('login.otp') }}">
-                @csrf
+           {{-- ============================================================
+     LANGKAH 2: Login
+     ============================================================ --}}
+<form method="POST" action="{{ route('login.otp') }}">
+    @csrf
 
-                {{-- Email --}}
-                <div class="input-wrap">
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/>
-                        <polyline points="22,6 12,13 2,6"/>
-                    </svg>
-                    <input
-                        type="email"
-                        name="email"
-                        id="login-email"
-                        placeholder="Email"
-                        value="{{ session('email') ?? old('email') }}"
-                        oninput="checkAdminEmail(this.value)"
-                        required
-                        autocomplete="email"
-                    >
-                </div>
+   {{-- Tampilkan OTP jika: device baru ATAU OTP baru dikirim --}}
+<input type="hidden" id="has-otp-error" value="{{ (session('need_otp') || session('otp_sent')) ? '1' : '0' }}">
 
-                {{-- Password --}}
-                <div class="input-wrap">
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
-                        <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
-                    </svg>
-                    <input type="password" name="password" placeholder="Password" required autocomplete="current-password">
-                </div>
+    {{-- Email --}}
+    <div class="input-wrap">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/>
+            <polyline points="22,6 12,13 2,6"/>
+        </svg>
+        <input
+            type="email"
+            name="email"
+            id="login-email"
+            placeholder="Email"
+            value="{{ old('email', session('email')) }}"
+            oninput="checkAdminEmail(this.value)"
+            required
+            autocomplete="email"
+        >
+    </div>
 
-                {{-- OTP — disembunyikan untuk admin --}}
-                <div class="input-wrap" id="wrap-otp-field">
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <polyline points="9 11 12 14 22 4"/>
-                        <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/>
-                    </svg>
-                    <input
-                        type="text"
-                        name="otp"
-                        id="otp-input"
-                        placeholder="Masukkan OTP"
-                        maxlength="6"
-                        inputmode="numeric"
-                        autocomplete="one-time-code"
-                    >
-                </div>
+    {{-- Password --}}
+    <div class="input-wrap">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
+            <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+        </svg>
+        <input type="password" name="password" placeholder="Password" required autocomplete="current-password">
+    </div>
 
-                {{-- Badge info admin --}}
-                <div class="admin-info-badge" id="admin-info-badge">
-                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
-                        <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
-                    </svg>
-                    Akun admin tidak memerlukan kode OTP
-                </div>
+    {{-- OTP — muncul hanya jika device baru --}}
+    <div class="input-wrap" id="wrap-otp-field" style="display:none;">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <polyline points="9 11 12 14 22 4"/>
+            <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/>
+        </svg>
+        <input
+            type="text"
+            name="otp"
+            id="otp-input"
+            placeholder="Masukkan OTP 6 digit"
+            maxlength="6"
+            inputmode="numeric"
+            autocomplete="one-time-code"
+        >
+    </div>
 
-                <button type="submit" class="btn-login">Masuk ke Portal</button>
-            </form>
+    {{-- Info device baru --}}
+    <div id="new-device-banner" style="display:none; font-size:12px; color:rgba(255,255,255,.7); background:rgba(255,255,255,.1); border:1px solid rgba(255,255,255,.2); border-radius:10px; padding:10px 13px; margin-bottom:12px;">
+        🔐 Perangkat baru terdeteksi. Silakan minta OTP di Langkah 1 lalu masukkan di atas.
+    </div>
+
+    {{-- Badge admin --}}
+    <div class="admin-info-badge" id="admin-info-badge">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
+            <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+        </svg>
+        Akun admin tidak memerlukan kode OTP
+    </div>
+
+    <button type="submit" class="btn-login">Masuk ke Portal</button>
+</form>
 
             <a href="{{ route('password.request') }}" class="forgot-link">Lupa Password?</a>
 
@@ -639,33 +650,90 @@
     // ================================================================
     // Toggle tampilan Langkah 1 (OTP section) berdasarkan role
     // ================================================================
+    // Daftar email admin
+    const ADMIN_EMAILS = [
+        'smanbondowoso1@gmail.com',
+        // tambah email admin lain di sini
+    ];
+
+    function showOtpField(show) {
+        const otpWrap  = document.getElementById('wrap-otp-field');
+        const otpInput = document.getElementById('otp-input');
+        const banner   = document.getElementById('new-device-banner');
+
+        otpWrap.style.display  = show ? 'block' : 'none';
+        banner.style.display   = show ? 'block' : 'none';
+        otpInput.required      = show;
+        if (!show) otpInput.value = '';
+    }
+
     function checkAdminEmail(email) {
         const isAdmin = ADMIN_EMAILS.includes(email.trim().toLowerCase());
+        const needOtp = document.getElementById('has-otp-error').value === '1';
 
-        const step1     = document.getElementById('step1-section');
-        const adminDiv  = document.getElementById('admin-divider');
-        const otpWrap   = document.getElementById('wrap-otp-field');
-        const otpInput  = document.getElementById('otp-input');
+        const step1      = document.getElementById('step1-section');
+        const adminDiv   = document.getElementById('admin-divider');
         const adminBadge = document.getElementById('admin-info-badge');
 
         if (isAdmin) {
-            // Sembunyikan Langkah 1 dan field OTP
             step1.style.display      = 'none';
             adminDiv.style.display   = 'block';
-            otpWrap.style.display    = 'none';
             adminBadge.style.display = 'flex';
-            otpInput.required        = false;
-            otpInput.value           = '';
+            showOtpField(false);
         } else {
-            // Tampilkan kembali semua untuk guru/siswa
             step1.style.display      = 'block';
             adminDiv.style.display   = 'none';
-            otpWrap.style.display    = 'block';
             adminBadge.style.display = 'none';
-            otpInput.required        = true;
+            // Tampilkan OTP hanya jika server bilang device baru
+            showOtpField(needOtp);
         }
     }
 
+    function selectMethod(method) {
+        const emailBtn    = document.getElementById('btn-email-method');
+        const waBtn       = document.getElementById('btn-wa-method');
+        const emailWrap   = document.getElementById('wrap-email-otp');
+        const waWrap      = document.getElementById('wrap-wa-otp');
+        const emailInput  = document.getElementById('input-email-otp');
+        const waInput     = document.getElementById('input-wa-otp');
+        const label       = document.getElementById('btn-otp-label');
+        const methodInput = document.getElementById('otp_method');
+
+        if (method === 'email') {
+            emailBtn.classList.add('active');
+            waBtn.classList.remove('active');
+            emailWrap.style.display = 'block';
+            waWrap.style.display    = 'none';
+            emailInput.required     = true;
+            waInput.required        = false;
+            waInput.value           = '';
+            label.textContent       = 'Dapatkan OTP via Email';
+            methodInput.value       = 'email';
+        } else {
+            waBtn.classList.add('active');
+            emailBtn.classList.remove('active');
+            waWrap.style.display    = 'block';
+            emailWrap.style.display = 'none';
+            waInput.required        = true;
+            emailInput.required     = false;
+            emailInput.value        = '';
+            label.textContent       = 'Dapatkan OTP via WhatsApp';
+            methodInput.value       = 'wa';
+        }
+    }
+
+    document.addEventListener('DOMContentLoaded', function () {
+        const emailEl = document.getElementById('login-email');
+        if (emailEl && emailEl.value.trim() !== '') {
+            checkAdminEmail(emailEl.value);
+        }
+
+        // Jika server kirim need_otp, langsung tampilkan kolom OTP
+        const needOtp = document.getElementById('has-otp-error').value === '1';
+        if (needOtp) {
+            showOtpField(true);
+        }
+    });
     // ================================================================
     // Toggle metode OTP (email / WhatsApp)
     // ================================================================

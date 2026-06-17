@@ -366,7 +366,7 @@
 
 <nav class="custom-topbar">
 
-    {{-- LEFT --}}
+    <!-- {{-- LEFT --}}
     <div style="display:flex; align-items:center; gap:12px;">
         {{-- Mobile sidebar toggle --}}
         <button class="tb-mobile-toggle" id="sidebarToggleTop">
@@ -457,7 +457,7 @@
 
                 <a href="#" class="tb-dd-footer">Baca Semua Pesan &rarr;</a>
             </div>
-        </div>
+        </div> -->
 
         <div class="tb-sep"></div>
 

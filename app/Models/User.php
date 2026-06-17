@@ -29,8 +29,9 @@ class User extends Authenticatable
         'photo',
         'otp',
         'otp_expired_at',
-        'telepon', // 🔥 WAJIB TAMBAH INI
-        'is_default_password'
+        'telepon',
+        'is_default_password',
+        'trusted_devices',  // ← tambahkan ini
     ];
 
     /**
@@ -47,6 +48,7 @@ class User extends Authenticatable
     protected $casts = [
         'email_verified_at' => 'datetime',
         'password' => 'hashed',
+        'trusted_devices' => 'array',
     ];
 
     /*
@@ -94,7 +96,7 @@ class User extends Authenticatable
         return $this->belongsTo(MataPelajaran::class, 'mapel_id');
     }
 
-    
+
 
     /*
     |--------------------------------------------------------------------------
@@ -104,20 +106,20 @@ class User extends Authenticatable
 
     // Ambil nomor WA dengan fallback
     public function getTeleponLengkap()
-{
-    if ($this->telepon) {
-        return $this->telepon;
-    }
+    {
+        if ($this->telepon) {
+            return $this->telepon;
+        }
 
-    if ($this->guru && $this->guru->telepon) {
-        return $this->guru->telepon;
-    }
+        if ($this->guru && $this->guru->telepon) {
+            return $this->guru->telepon;
+        }
 
-    // 🔥 fallback tambahan (opsional tapi aman)
-    if ($this->siswa && $this->siswa->telepon) {
-        return $this->siswa->telepon;
-    }
+        // 🔥 fallback tambahan (opsional tapi aman)
+        if ($this->siswa && $this->siswa->telepon) {
+            return $this->siswa->telepon;
+        }
 
-    return null;
-}
+        return null;
+    }
 }
